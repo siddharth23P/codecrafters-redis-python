@@ -1,51 +1,27 @@
-import socket
-import selectors, socket
-from .parser import RespParser, Incomplete
-sel = selectors.DefaultSelector()
+from .COMMANDS import load as load_commands
+from .context import ServerContext
+from .dispatcher import CommandDispatcher
+from .encoder import RespEncoder
+from .parser import RespParser
+from .server import RedisServer
 
-parser = RespParser()
-buffers = {}
 
-def accept(server):
-    conn, _ = server.accept()
-    conn.setblocking(False)
-    sel.register(conn, selectors.EVENT_READ, handle)
-    
-def handle(conn):
-    data = conn.recv(1024)
-    if not data:
-        sel.unregister(conn)
-        conn.close()
-        return
-    buf = buffers.get(conn, b"") + data
-    while buf:
-        try: 
-            cmd, used = parser.parse(buf)
-        except Incomplete:
-            break
-        buf = buf[used:]
-        conn.sendall(execute(cmd))
-    buffers[conn] = buf
-    
-def execute(cmd):
-    name, args = cmd[0].decode().lower(), cmd[1:]
-    if name == "ping":
-        return b"+PONG\r\n"
-    if name == "echo" and args:
-        arg = args[0]
-        return b"$%d\r\n%s\r\n" % (len(arg), arg)
-    return b"-ERR unknown command\r\n"
-    
+def build_server():
+    """Composition root: the only place concrete objects are created and wired together."""
+    ctx = ServerContext()
+    load_commands(ctx)  # fills ctx.registry
+    return RedisServer(
+        ("localhost", 6379),
+        parser=RespParser(),
+        dispatcher=CommandDispatcher(ctx.registry),
+        encoder=RespEncoder(),
+    )
+
+
 def main():
     print("Running Redis Server")
-    server = socket.create_server(("localhost", 6379), reuse_port=True)
-    server.setblocking(False)
-    sel.register(server,selectors.EVENT_READ, accept)
-    while True:
-        for key, _ in sel.select():
-            # print(key, _)
-            key.data(key.fileobj)
-        
+    build_server().serve_forever()
+
 
 if __name__ == "__main__":
     main()
