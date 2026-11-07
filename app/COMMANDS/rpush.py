@@ -1,5 +1,4 @@
-import time
-from ..resp_types import CommandError, Integer
+from ..resp_types import CommandError, ErrorReply, Integer
 
 UNITS = {b"px": 1/1000, b"ex": 1}
 
@@ -7,22 +6,17 @@ def create(ctx):
     store = ctx.store
 
     def run(args):
-        # if len(args) not in (2,4):
-        #     raise CommandError("wrong number of arguments for set command")
-        key, *value = args
-        expires_at = None
-        # if option:
-        #     unit, amount = option
-        #     scale = UNITS.get(unit.lower())
-        #     if scale is None or not amount.isdigit() or int(amount) == 0:
-        #         raise CommandError("Syntax Error")
-        #     expires_at = time.monotonic() + int(amount) * scale
+        if len(args) < 2:
+            raise CommandError("wrong number of arguments for 'rpush' command")
+        key, *elements = args
 
         if key not in store:
-            store[key] = [value if type(value) == list else [value], expires_at]
+            store[key] = [elements, None]
         else:
-            store[key][0].extend(value)
-            store[key][1] = expires_at
+            items = store[key][0]
+            if not isinstance(items, list):
+                return ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
+            items.extend(elements)
         return Integer(len(store[key][0]))
 
     return run
