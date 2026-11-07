@@ -18,7 +18,11 @@ def create(ctx):
                 raise CommandError("Syntax Error")
             expires_at = time.monotonic() + int(amount) * scale
 
-        store[key] = ([value], expires_at)
+        if key not in store:
+            store[key] = ([value], expires_at)
+        else:
+            store[key][0].append(value)
+            store[key][1] = expires_at
         return Integer(len(store[key][0]))
 
     return run
