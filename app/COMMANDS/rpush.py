@@ -19,7 +19,10 @@ def create(ctx):
         #     expires_at = time.monotonic() + int(amount) * scale
 
         if key not in store:
-            store[key] = [value, expires_at]
+            if type(value) == list:
+                store[key] = [value, expires_at]
+            else:
+                store[key] = [[value], expires_at]
         else:
             store[key][0].extend(value)
             store[key][1] = expires_at
