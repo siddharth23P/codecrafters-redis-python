@@ -24,7 +24,11 @@ def create(ctx):
             else:
                 store[key] = [[value], expires_at]
         else:
-            store[key][0].extend(value)
+            if type(value) == list:
+                for val in value:
+                    store[key][0].append(value)
+            else:
+                store[key][0].append(value)
             store[key][1] = expires_at
         return Integer(len(store[key][0]))
 
