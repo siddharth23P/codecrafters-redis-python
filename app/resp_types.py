@@ -1,7 +1,7 @@
-"""Reply types a command can return, beyond plain Python values.
+"""Reply types a command can return, one class per RESP2 type.
 
-Plain values map to RESP as: bytes/str -> bulk string, int -> integer,
-list -> array, None -> null bulk string.
+Plain values still work and map to the same types:
+bytes/str -> BulkString, int -> Integer, list/tuple -> Array, None -> null BulkString.
 """
 from dataclasses import dataclass
 
@@ -16,6 +16,24 @@ class SimpleString:
 class ErrorReply:
     """Reply sent as `-message`."""
     message: str
+
+
+@dataclass(frozen=True)
+class Integer:
+    """Reply sent as `:value`."""
+    value: int
+
+
+@dataclass(frozen=True)
+class BulkString:
+    """Reply sent as `$len` + data; binary-safe. None is sent as the null bulk string `$-1`."""
+    value: bytes | None
+
+
+@dataclass(frozen=True)
+class Array:
+    """Reply sent as `*count` + each item encoded. None is sent as the null array `*-1`."""
+    items: list | tuple | None
 
 
 class CommandError(Exception):

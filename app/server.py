@@ -6,12 +6,15 @@ from .parser import Incomplete, ProtocolError
 
 
 class RedisServer:
-    def __init__(self, address, parser, dispatcher, encoder, selector=None):
+    def __init__(self, address, parser, dispatcher, encoder, selector=None,
+                 tickers=(), tick_interval=0.1):
         self._address = address
         self._parser = parser          # bytes -> (request, bytes_used)
         self._dispatcher = dispatcher  # request -> reply value
         self._encoder = encoder        # reply value -> bytes
         self._sel = selector or selectors.DefaultSelector()
+        self._tickers = tickers              # objects with tick(), run on every loop pass
+        self._tick_interval = tick_interval  # max seconds select() sleeps, so tickers run when idle
         self._buffers: dict[socket.socket, bytes] = {}  # unparsed bytes per connection
 
     def serve_forever(self):
@@ -19,8 +22,10 @@ class RedisServer:
         server.setblocking(False)
         self._sel.register(server, selectors.EVENT_READ, self._accept)
         while True:
-            for key, _ in self._sel.select():
+            for key, _ in self._sel.select(timeout=self._tick_interval):
                 key.data(key.fileobj)
+            for ticker in self._tickers:
+                ticker.tick()
 
     def _accept(self, server):
         conn, _ = server.accept()

@@ -2,6 +2,7 @@ from .COMMANDS import load as load_commands
 from .context import ServerContext
 from .dispatcher import CommandDispatcher
 from .encoder import RespEncoder
+from .expiry import ActiveExpirer
 from .parser import RespParser
 from .server import RedisServer
 
@@ -15,6 +16,7 @@ def build_server():
         parser=RespParser(),
         dispatcher=CommandDispatcher(ctx.registry),
         encoder=RespEncoder(),
+        tickers=[ActiveExpirer(ctx.store)],
     )
 
 

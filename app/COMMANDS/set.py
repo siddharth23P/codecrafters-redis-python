@@ -5,7 +5,7 @@ UNITS = {b"px": 1/1000, b"ex": 1}
 
 def create(ctx):
     store = ctx.store
-    
+
     def run(args):
         if len(args) not in (2,4):
             raise CommandError("wrong number of arguments for set command")
@@ -17,8 +17,8 @@ def create(ctx):
             if scale is None or not amount.isdigit() or int(amount) == 0:
                 raise CommandError("Syntax Error")
             expires_at = time.monotonic() + int(amount) * scale
-            
+
         store[key] = (value, expires_at)
         return SimpleString("OK")
-       
+
     return run
