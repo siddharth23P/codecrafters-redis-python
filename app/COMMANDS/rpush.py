@@ -7,8 +7,8 @@ def create(ctx):
     store = ctx.store
 
     def run(args):
-        if len(args) not in (2,4):
-            raise CommandError("wrong number of arguments for set command")
+        # if len(args) not in (2,4):
+        #     raise CommandError("wrong number of arguments for set command")
         key, *value = args
         expires_at = None
         # if option:
@@ -19,16 +19,9 @@ def create(ctx):
         #     expires_at = time.monotonic() + int(amount) * scale
 
         if key not in store:
-            if type(value) == list:
-                store[key] = [value, expires_at]
-            else:
-                store[key] = [[value], expires_at]
+            store[key] = [value if type(value) == list else [value], expires_at]
         else:
-            if type(value) == list:
-                for val in value:
-                    store[key][0].append(value)
-            else:
-                store[key][0].append(value)
+            store[key][0].extend(value)
             store[key][1] = expires_at
         return Integer(len(store[key][0]))
 
