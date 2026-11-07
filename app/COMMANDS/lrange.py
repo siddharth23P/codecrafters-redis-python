@@ -19,7 +19,13 @@ def create(ctx):
         if not isinstance(items, list):
             return ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
         
-        stop = min(len(items)-1,stop)
+        n = len(items)
+        
+        if start < 0:
+            start = max(n + start, 0)
+        if stop < 0:
+            stop = n + stop
+        stop = min(stop, n - 1)
         
         if start > stop:
             return Array([])
