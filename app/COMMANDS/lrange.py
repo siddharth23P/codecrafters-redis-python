@@ -1,5 +1,5 @@
 from ..resp_types import CommandError, ErrorReply, Array
-
+from collections import deque
 def create(ctx):
     store = ctx.store
     def run(args):
@@ -14,10 +14,10 @@ def create(ctx):
         if key not in store:
             return Array([])
         
-        items = store[key][0]
-        
-        if not isinstance(items, list):
-            return ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
+        try:
+            items = list(store[key][0])
+        except TypeError:
+            raise ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
         
         n = len(items)
         
