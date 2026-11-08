@@ -1,7 +1,7 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
 from typing import Any, Callable, Mapping
 
-from .resp_types import CommandError, ErrorReply
+from ..PROTOCOL.resp_types import CommandError, ErrorReply
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
@@ -21,4 +21,4 @@ class CommandDispatcher:
         try:
             return command(request[1:])
         except CommandError as e:
-            return ErrorReply(f"ERR {e}")
+            return ErrorReply(f"{e.prefix} {e}")

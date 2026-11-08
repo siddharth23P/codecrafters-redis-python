@@ -37,4 +37,13 @@ class Array:
 
 
 class CommandError(Exception):
-    """Raised by a command for bad usage; sent to the client as `-ERR <message>`."""
+    """Raised by a command for bad usage; sent to the client as `-<prefix> <message>`."""
+    prefix = "ERR"
+
+
+class WrongTypeError(CommandError):
+    """Raised when a command hits a key holding another type (e.g. LPUSH on a string)."""
+    prefix = "WRONGTYPE"
+
+    def __init__(self):
+        super().__init__("Operation against a key holding the wrong kind of value")
