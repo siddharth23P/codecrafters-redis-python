@@ -17,7 +17,7 @@ class StreamCommands:
         key = args[0]
         entry = self._store.get(key)
         if entry is None:
-            return SimpleString("None")
+            return SimpleString("none")
         if isinstance(entry[0], deque):
             return SimpleString("list")
         return SimpleString("string")
