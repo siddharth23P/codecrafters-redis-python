@@ -37,16 +37,26 @@ class StreamCommands:
             self._store[key] = [kv_store, None]
         kv_store = self._store[key][0]
         
-        ms, seq = map(int, id.split(b"-"))
+        ms_part, seq_part = id.split(b"-")
+        ms = int(ms_part)
         
+        last_id = next(reversed(kv_store), None)
+        last_ms, last_seq = map(int, last_id.split(b"-")) if last_id is not None else (0, 0)
+        
+        if seq_part == b"*":
+            seq = last_seq + 1 if ms == last_ms else 0
+        else:
+            seq = int(seq_part)
+            
         if (ms, seq) == (0, 0):
             raise CommandError("The ID specified in XADD must be greater than 0-0")
         
-        last_id = next(reversed(kv_store), None)
         
-        if last_id is not None and (ms, seq) <= tuple(map(int, last_id.split(b"-"))):
+        if (ms, seq) <= (last_ms, last_seq):
             raise CommandError("The ID specified in XADD is equal or smaller than the target stream top item")
 
+        id = b"%d-%d" % (ms, seq)
+            
         if id not in kv_store:
             kv_store[id] = dict()
             
