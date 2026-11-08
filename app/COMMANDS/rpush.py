@@ -16,6 +16,7 @@ def create(ctx):
             if not isinstance(items, deque):
                 return ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
             items.extend(elements)
+        ctx.blocking.notify(key)  # wake BLPOP clients waiting on this key
         return Integer(len(store[key][0]))
 
     return run

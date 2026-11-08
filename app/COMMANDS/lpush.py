@@ -17,6 +17,7 @@ def create(ctx):
                 return ErrorReply("WRONGTYPE Operation against a key holding the wrong kind of value")
             for element in elements:
                 items.appendleft(element)
+        ctx.blocking.notify(key)  # wake BLPOP clients waiting on this key
         return Integer(len(store[key][0]))
 
     return run

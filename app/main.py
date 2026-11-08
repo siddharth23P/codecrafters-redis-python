@@ -16,7 +16,8 @@ def build_server():
         parser=RespParser(),
         dispatcher=CommandDispatcher(ctx.registry),
         encoder=RespEncoder(),
-        tickers=[ActiveExpirer(ctx.store)],
+        blocking=ctx.blocking,
+        tickers=[ActiveExpirer(ctx.store), ctx.blocking],
     )
 
 
