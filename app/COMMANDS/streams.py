@@ -2,6 +2,7 @@
 from . import check_arity, register, registered_commands, to_int
 from ..PROTOCOL.resp_types import Array, BulkString, CommandError, Integer, SimpleString, WrongTypeError
 from collections import deque, OrderedDict
+import time
 
 def create(ctx):
     return registered_commands(StreamCommands(ctx.store))
@@ -37,8 +38,13 @@ class StreamCommands:
             self._store[key] = [kv_store, None]
         kv_store = self._store[key][0]
         
-        ms_part, seq_part = id.split(b"-")
-        ms = int(ms_part)
+        if id == b"*":
+            ms = time.time_ns() // 1_000_000
+            seq_part = 0
+        
+        else:
+            ms_part, seq_part = id.split(b"-")
+            ms = int(ms_part)
         
         last_id = next(reversed(kv_store), None)
         last_ms, last_seq = map(int, last_id.split(b"-")) if last_id is not None else (0, 0)
