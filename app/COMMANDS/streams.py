@@ -42,8 +42,12 @@ class StreamCommands:
         return Array(self._get(key,start,stop))
     
     def _get_streams(self,args):
-        *keys,start,stop = self._get_read_args(args, "xread", 2)
-        reads = [[key,self._get(key,start,stop)] for key in keys]
+        check_arity(args, "xread", len(args) >= 2 and len(args)%2 == 0)
+        half = len(args) // 2
+        keys, ids = args[:half], args[half:]
+        reads = []
+        for key, id in zip(keys,ids):
+            reads.append([key,self._get(key,id,b"+")])
         return Array(reads)
     
     def _get_read_args(self, args, name, args_count):
