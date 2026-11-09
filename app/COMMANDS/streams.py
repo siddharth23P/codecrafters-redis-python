@@ -30,12 +30,33 @@ class StreamCommands:
         return self._push(args, "xadd")
     
     @register
-    def xrange(self,args):
-        return self._get(args, "xrange")
+    def xread(self,args):
+        sub_cmd = args[0]
+        if sub_cmd.lower() == b"streams":
+            return self._get_streams(args[1:])
+        
     
-    def _get(self, args, name):
-        check_arity(args, name, len(args) == 3)
-        key, start, stop = args
+    @register
+    def xrange(self,args):
+        key,start,stop = self._get_read_args(args, "xrange", 3)
+        return Array(self._get(key,start,stop))
+    
+    def _get_streams(self,args):
+        *keys,start,stop = self._get_read_args(args, "xread", 2)
+        reads = [[key,self._get(key,start,stop)] for key in keys]
+        return Array(reads)
+    
+    def _get_read_args(self, args, name, args_count):
+        check_arity(args, name, len(args) == args_count)
+        if args_count == 3:
+            key, start, stop = args
+        if args_count == 2:
+            key, start = args
+            stop = b"+"
+            
+        return key,start,stop
+    
+    def _get(self, key, start, stop):
         entry = self._store.get(key)
         if entry is None:
             return Array([])
@@ -51,7 +72,7 @@ class StreamCommands:
             if current >= lo:
                 flat = [x for pair in fields.items() for x in pair]   # {a: 1, b: 2} becomes [a, 1, b, 2]
                 result.append(Array([id, Array(flat)]))
-        return Array(result)
+        return result
 
     @staticmethod
     def _range_id(raw, default_seq):
