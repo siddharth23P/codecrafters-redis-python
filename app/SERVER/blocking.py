@@ -8,9 +8,9 @@ from ..PROTOCOL.resp_types import Array
 
 @dataclass
 class Blocked:
-    """Returned by BLPOP instead of a reply: park this client."""
     keys: list
     timeout: float | None  # seconds; None = wait forever
+    serve: callable
 
 
 class BlockingRegistry:
@@ -22,18 +22,21 @@ class BlockingRegistry:
 
     def wait(self, client, blocked: Blocked):
         deadline = None if blocked.timeout is None else time.monotonic() + blocked.timeout
-        self._waiting[client] = (blocked.keys, deadline)
+        self._waiting[client] = (blocked, deadline)
         for key in blocked.keys:
             self._queues.setdefault(key, deque()).append(client)
 
     def remove(self, client):
-        keys, _ = self._waiting.pop(client, ((), None))
-        for key in keys:
+        blocked, _ = self._waiting.pop(client, (None, None))
+        if blocked is None:   # client wasn't waiting
+            return
+        for key in blocked.keys:
             queue = self._queues.get(key)
             if queue and client in queue:
                 queue.remove(client)
                 if not queue:
                     del self._queues[key]
+
 
     def notify(self, key: bytes):
         """Called by RPUSH/LPUSH after adding to key."""
@@ -45,11 +48,13 @@ class BlockingRegistry:
         replies = []
         while self._ready:
             key = self._ready.pop()
-            items = self._store[key][0]
-            while items and key in self._queues:
-                client = self._queues[key][0]
+            for client in list(self._queues.get(key, ())):  # copy: remove() changes the queue
+                blocked, _ = self._waiting[client]
+                reply = blocked.serve(key)
+                if reply is None:
+                    continue  # nothing for this client yet
                 self.remove(client)
-                replies.append((client, Array([key, items.popleft()])))
+                replies.append((client, reply))
         return replies
 
     def timed_out(self):

@@ -1,16 +1,18 @@
 """Stream commands."""
 from . import check_arity, register, registered_commands, to_int
 from ..PROTOCOL.resp_types import Array, BulkString, CommandError, Integer, SimpleString, WrongTypeError
+from ..SERVER.blocking import Blocked
 from collections import deque, OrderedDict
 import time
 
 def create(ctx):
-    return registered_commands(StreamCommands(ctx.store))
+    return registered_commands(StreamCommands(ctx.store, ctx.blocking))
 
 
 class StreamCommands:
-    def __init__(self, store):
+    def __init__(self, store, blocking):
         self._store = store
+        self._blocking = blocking
         
     @register
     def type(self,args):
@@ -32,6 +34,25 @@ class StreamCommands:
     @register
     def xread(self,args):
         sub_cmd = args[0]
+        if sub_cmd.lower() == b"block":
+            timeout = to_int(args[1]) / 1000
+            if timeout < 0:
+                raise CommandError("timeout is negative")
+            key, id = args[3], args[4]
+            if id == b"$":
+                entry = self._store.get(key)
+                id = next(reversed(entry[0]), b"0-0") if entry else b"0-0"
+            ms, seq = self._range_id(id, 0)
+            start = b"%d-%d" % (ms, seq + 1) 
+            
+            def serve(k):
+                entries = self._get(key, start, b"+")
+                return Array([Array([key, Array(entries)])]) if entries else None
+            
+            reply = serve(key)
+            return reply if reply is not None else Blocked([key],timeout or None,serve)
+            
+            
         if sub_cmd.lower() == b"streams":
             return self._get_streams(args[1:])
         
@@ -57,7 +78,6 @@ class StreamCommands:
         if args_count == 2:
             key, start = args
             stop = b"+"
-            
         return key,start,stop
     
     def _get(self, key, start, stop):
@@ -90,7 +110,6 @@ class StreamCommands:
             return int(ms), int(seq)
         return int(raw), default_seq
         
-    
     def _push(self,args,name):
         check_arity(args, name, len(args) >= 4 and len(args)%2 == 0)
         key, id, *kv_pairs = args
@@ -132,7 +151,8 @@ class StreamCommands:
             k = kv_pairs[key_index]
             v = kv_pairs[value_index]
             kv_store[id][k] = v
-            
+        
+        self._blocking.notify(key)
         return BulkString(id)
             
             

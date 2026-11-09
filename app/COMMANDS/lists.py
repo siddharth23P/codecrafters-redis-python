@@ -84,7 +84,7 @@ class ListCommands:
             items = self._list(key)
             if items:
                 return Array([key, items.popleft()])
-        return Blocked(keys, timeout or None)  # 0 = wait forever
+        return Blocked(keys, timeout or None, self._serve_pop)  # 0 = wait forever
 
     # --- shared helpers ---
 
@@ -108,3 +108,6 @@ class ListCommands:
         self._blocking.notify(key)  # wake BLPOP clients waiting on this key
         return Integer(len(items))
 
+    def _serve_pop(self, key):
+        items = self._list(key)
+        return Array([key, items.popleft()]) if items else None
