@@ -28,6 +28,42 @@ class StreamCommands:
     @register
     def xadd(self,args):
         return self._push(args, "xadd")
+    
+    @register
+    def xrange(self,args):
+        return self._get(args, "xrange")
+    
+    def _get(self, args, name):
+        check_arity(args, name, len(args) == 3)
+        key, start, stop = args
+        entry = self._store.get(key)
+        if entry is None:
+            return Array([])
+
+        lo = self._range_id(start, 0)
+        hi = self._range_id(stop, float("inf"))
+
+        result = []
+        for id, fields in entry[0].items():
+            current = tuple(map(int, id.split(b"-")))
+            if current > hi:
+                break                      # ordered, so nothing later matches
+            if current >= lo:
+                flat = [x for pair in fields.items() for x in pair]   # {a: 1, b: 2} becomes [a, 1, b, 2]
+                result.append(Array([id, Array(flat)]))
+        return Array(result)
+
+    @staticmethod
+    def _range_id(raw, default_seq):
+        """b"5-3" gives (5, 3); b"5" gives (5, default_seq); "-" and "+" are the min and max."""
+        if raw == b"-":
+            return (0, 0)
+        if raw == b"+":
+            return (float("inf"), float("inf"))
+        if b"-" in raw:
+            ms, seq = raw.split(b"-")
+            return int(ms), int(seq)
+        return int(raw), default_seq
         
     
     def _push(self,args,name):
