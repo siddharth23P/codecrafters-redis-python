@@ -30,6 +30,10 @@ class CommandDispatcher:
             del self._transactions[conn]
             return Array([self._run(r) for r in queue])
         
+        if queue is not None:
+            queue.append(request)
+            return SimpleString("QUEUED")
+        
         return self._run(request)
         
         
