@@ -1,6 +1,6 @@
 """Connection commands: PING, ECHO."""
 from . import check_arity, register, registered_commands
-from ..PROTOCOL.resp_types import SimpleString
+from ..PROTOCOL.resp_types import SimpleString, BulkString
 
 
 def create(ctx):
@@ -48,5 +48,5 @@ class ConnectionCommands:
         info_dump["connected_clients"]=self.__connected_clients
         info_dump["used_memory"]=self.__used_memory
         info_dump["role"]=self.__role
-        return info_dump
+        return BulkString(info_dump)
         
