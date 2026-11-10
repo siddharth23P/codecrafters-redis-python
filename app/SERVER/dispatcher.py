@@ -10,6 +10,7 @@ class CommandDispatcher:
     def __init__(self, registry: Mapping[str, Command]):
         self._registry = registry  # name -> command, filled by COMMANDS.load
         self._transactions = {}
+        self._watched = {}
 
     def execute(self,conn, request: Any) -> Any:
         """Run one request (e.g. [b'ECHO', b'hey']) and return its reply value."""
@@ -17,6 +18,7 @@ class CommandDispatcher:
             return ErrorReply("ERR Protocol error: expected an array of bulk strings")
         name = request[0].decode(errors="replace").lower()
         queue = self._transactions.get(conn)
+        watched_list = self._watched.get(conn)
         
         if name == "multi":
             if queue is not None:
@@ -37,6 +39,9 @@ class CommandDispatcher:
             return SimpleString("OK")
         
         if name == "watch":
+            if queue is not None:
+                return ErrorReply("ERR WATCH inside MULTI is not allowed")
+            self._watched[conn] = request[1]
             return SimpleString("OK")
             
         if queue is not None:
