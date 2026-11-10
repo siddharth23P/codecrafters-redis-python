@@ -9,10 +9,13 @@ from .SERVER.server import RedisServer
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=6379)
+    parser.add_argument("--replicaof", type=str, default=None)
     args = parser.parse_args()
     
     print(f"Running Redis Server on port {args.port}")
-    ctx = ServerContext()
+    role = "slave" if args.replicaof else "master"
+    
+    ctx = ServerContext(role=role)
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),

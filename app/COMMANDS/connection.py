@@ -4,25 +4,17 @@ from ..PROTOCOL.resp_types import SimpleString, BulkString
 
 
 def create(ctx):
-    return registered_commands(ConnectionCommands())
+    return registered_commands(ConnectionCommands(ctx))
 
 
 class ConnectionCommands:
-    def __init__(self):
-        self.__version = "0.0.0"
-        self.__connected_clients = 0
-        self.__used_memory = 0
-        self.__role = "master"
-        self.__replication = {
-            "connected_slave":0,
-            "master_replid":None,
-            "master_repl_offset":0,
-            "second_repl_offset":0,
-            "repl_backlog_active":0,
-            "repl_backlog_size":0,
-            "repl_backlog_first_byte_offset":0,
-            "repl_backlog_histlen": 0,
-        }
+    def __init__(self,ctx):
+        self.__version = ctx.version
+        self.__connected_clients = ctx.connected_clients
+        self.__used_memory = ctx.used_memory
+        self.__role = ctx.role
+        self.__replication = ctx.replication
+        
     @register
     def ping(self, args):
         """PING -> +PONG.  PING message -> message as a bulk string."""
