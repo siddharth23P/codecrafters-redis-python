@@ -30,6 +30,12 @@ class CommandDispatcher:
             del self._transactions[conn]
             return Array([self._run(r) for r in queue])
         
+        if name == "discard":
+            if queue is None:
+                return ErrorReply("ERR DISCARD without MULTI")
+            del self._transactions[conn]
+            return SimpleString("OK")
+            
         if queue is not None:
             queue.append(request)
             return SimpleString("QUEUED")
