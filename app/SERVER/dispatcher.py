@@ -35,6 +35,9 @@ class CommandDispatcher:
                 return ErrorReply("ERR DISCARD without MULTI")
             del self._transactions[conn]
             return SimpleString("OK")
+        
+        if name == "watch":
+            return SimpleString("OK")
             
         if queue is not None:
             queue.append(request)

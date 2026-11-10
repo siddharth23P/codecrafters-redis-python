@@ -23,5 +23,4 @@ class TransactionCommands:
         except ValueError:
             raise CommandError("value is not an integer or out of range")
         self._store[key] = (str(value).encode(), expires_at)
-        return Integer(value)
-    
+        return Integer(value) 
