@@ -32,6 +32,7 @@ class CommandDispatcher:
                 return ErrorReply("ERR EXEC without MULTI")
             del self._transactions[conn]
             aborted = conn in self._dirty
+            self._unwatch(conn)
             if aborted:
                 return Array(None)
             return Array([self._run(r) for r in queue])
@@ -40,6 +41,7 @@ class CommandDispatcher:
             if queue is None:
                 return ErrorReply("ERR DISCARD without MULTI")
             del self._transactions[conn]
+            self._unwatch(conn)
             return SimpleString("OK")
         
         if name == "watch":
@@ -48,7 +50,11 @@ class CommandDispatcher:
             for key in request[1:]:
                 self._watching.setdefault(key, set()).add(conn)
             return SimpleString("OK")
-            
+        
+        if name == "unwatch":
+            self._unwatch(conn)
+            return SimpleString("OK")
+        
         if queue is not None:
             queue.append(request)
             return SimpleString("QUEUED")
@@ -59,6 +65,12 @@ class CommandDispatcher:
     def forget(self, conn):
         """Drop a closed connection's transaction."""
         self._transactions.pop(conn, None)
+        self._unwatch(conn)
+        
+    def _unwatch(self,conn):
+        self._dirty.discard(conn)
+        for watchers in self._watching.values():
+            watchers.discard(conn)
         
     def _run(self, request):
         name = request[0].decode(errors="replace").lower()
