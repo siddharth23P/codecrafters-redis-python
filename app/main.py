@@ -13,7 +13,16 @@ def main():
     args = parser.parse_args()
     
     print(f"Running Redis Server on port {args.port}")
-    role = "slave" if args.replicaof else "master"
+    replication = {}
+    
+    if args.replicaof:
+        role = "slave"
+    else:
+        role = "master"
+        replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+        replication["master_repl_offset"] = 0
+        
+        
     
     ctx = ServerContext(role=role)
     load_commands(ctx)  # fills ctx.registry
