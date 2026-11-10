@@ -13,16 +13,7 @@ class ServerContext:
     version: str="0.0.0"
     connected_clients: int = 0
     used_memory: int = 0
-    replication:dict = {
-        "connected_slave": 0,
-        "master_replid":None,
-        "master_repl_offset":0,
-        "second_repl_offset":0,
-        "repl_backlog_active":0,
-        "repl_backlog_size":0,
-        "repl_backlog_first_byte_offset":0,
-        "repl_backlog_histlen": 0,
-    }
+    replication:dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.blocking = BlockingRegistry(self.store)
