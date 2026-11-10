@@ -4,7 +4,7 @@ from .SERVER.context import ServerContext
 from .SERVER.dispatcher import CommandDispatcher
 from .SERVER.expiry import ActiveExpirer
 from .SERVER.server import RedisServer
-
+from .SERVER.replication import connect_to_master
 
 def main():
     parser = argparse.ArgumentParser()
@@ -17,13 +17,13 @@ def main():
     
     if args.replicaof:
         role = "slave"
+        master = connect_to_master(args.replicaof)
     else:
         role = "master"
         replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         replication["master_repl_offset"] = 0
         
         
-    
     ctx = ServerContext(role=role,replication=replication)
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
