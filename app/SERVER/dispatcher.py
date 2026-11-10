@@ -1,7 +1,7 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
 from typing import Any, Callable, Mapping
 
-from ..PROTOCOL.resp_types import CommandError, ErrorReply
+from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
@@ -9,11 +9,28 @@ Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 class CommandDispatcher:
     def __init__(self, registry: Mapping[str, Command]):
         self._registry = registry  # name -> command, filled by COMMANDS.load
+        self._transactions = {}
 
-    def execute(self, request: Any) -> Any:
+    def execute(self,conn, request: Any) -> Any:
         """Run one request (e.g. [b'ECHO', b'hey']) and return its reply value."""
         if not isinstance(request, list) or not request or not isinstance(request[0], bytes):
             return ErrorReply("ERR Protocol error: expected an array of bulk strings")
+        name = request[0].decode(errors="replace").lower()
+        queue = self._transactions.get(conn)
+        
+        if name == "multi":
+            if queue is not None:
+                return ErrorReply("ERR MULTI calls can not be nested")
+            self._transactions[conn] = []
+            return SimpleString("OK")
+        return self._run(request)
+            
+        
+    def forget(self, conn):
+        """Drop a closed connection's transaction."""
+        self._transactions.pop(conn, None)
+        
+    def _run(self, request):
         name = request[0].decode(errors="replace").lower()
         command = self._registry.get(name)
         if command is None:

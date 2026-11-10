@@ -59,7 +59,7 @@ class RedisServer:
             while conn not in self._parked:
                 request, used = parse(self._buffers[conn])  # raises Incomplete when out of data
                 self._buffers[conn] = self._buffers[conn][used:]
-                reply = self._dispatcher.execute(request)
+                reply = self._dispatcher.execute(conn, request)
                 if isinstance(reply, Blocked):
                     self._parked.add(conn)
                     self._blocking.wait(conn, reply)
@@ -88,4 +88,5 @@ class RedisServer:
         self._parked.discard(conn)
         del self._buffers[conn]
         self._sel.unregister(conn)
+        self._dispatcher.forget(conn)
         conn.close()
