@@ -17,12 +17,11 @@ class TransactionCommands:
     def incr(self,args):
         check_arity(args,"INCR",len(args) == 1)
         key = args[0]
-        if key not in self._store:
-            self._store[key] = (Integer(1), None)
+        value, expires_at = self._store.get(key, (b"0", None))
         try:
-            value = int(self._store[key][0])
+            value = int(value) + 1
         except ValueError:
             raise CommandError("value is not an integer or out of range")
-        self._store[key] = (Integer(value + 1), self._store[key][1])
-        return self._store[key][0]
+        self._store[key] = (str(value).encode(), expires_at)
+        return Integer(value)
     
