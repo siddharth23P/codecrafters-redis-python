@@ -24,7 +24,7 @@ def main():
         
         
     
-    ctx = ServerContext(role=role)
+    ctx = ServerContext(role=role,replication=replication)
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),
