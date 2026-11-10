@@ -38,15 +38,14 @@ class ConnectionCommands:
     @register
     def info(self, args):
         info_dump = {}
-        for arg in args:
-            if arg == b"replication":
-                info_dump["role"] = self.__role
-                for key,value in self.__replication.values():
-                    info_dump[key] = value
-            return info_dump
-        info_dump["version"]=self.__version
-        info_dump["connected_clients"]=self.__connected_clients
-        info_dump["used_memory"]=self.__used_memory
-        info_dump["role"]=self.__role
-        return BulkString(info_dump)
+        info_dump = {"role": self.__role}
+        if b"replication" in (a.lower() for a in args):
+            info_dump.update(self.__replication)
+        else:
+            info_dump.update(version=self.__version,
+                             connected_clients=self.__connected_clients,
+                             used_memory=self.__used_memory)
+        text = "\r\n".join(f"{k}:{v}" for k, v in info_dump.items())
+        return BulkString(text.encode())
+
         
