@@ -1,7 +1,7 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
 from typing import Any, Callable, Mapping
 
-from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString
+from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString, Array
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
@@ -23,8 +23,15 @@ class CommandDispatcher:
                 return ErrorReply("ERR MULTI calls can not be nested")
             self._transactions[conn] = []
             return SimpleString("OK")
+        
+        if name == "exec":
+            if queue is None:
+                return ErrorReply("ERR EXEC without MULTI")
+            del self._transactions[conn]
+            return Array([self._run(r) for r in queue])
+        
         return self._run(request)
-            
+        
         
     def forget(self, conn):
         """Drop a closed connection's transaction."""
