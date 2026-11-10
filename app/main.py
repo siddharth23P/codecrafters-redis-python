@@ -1,3 +1,4 @@
+import argparse
 from .COMMANDS import load as load_commands
 from .SERVER.context import ServerContext
 from .SERVER.dispatcher import CommandDispatcher
@@ -6,11 +7,15 @@ from .SERVER.server import RedisServer
 
 
 def main():
-    print("Running Redis Server")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=6379)
+    args = parser.parse_args()
+    
+    print(f"Running Redis Server on port {args.port}")
     ctx = ServerContext()
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
-        ("localhost", 6379),
+        ("localhost", args.port),
         dispatcher=CommandDispatcher(ctx.registry),
         blocking=ctx.blocking,
         tickers=[ActiveExpirer(ctx.store)],
