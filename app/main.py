@@ -10,6 +10,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=6379)
     parser.add_argument("--replicaof", type=str, default=None)
+    parser.add_argument("--dir", type=str, default=None)
+    parser.add_argument("--dbfilename", type=str, default=None)
     args = parser.parse_args()
     
     print(f"Running Redis Server on port {args.port}")
@@ -24,8 +26,11 @@ def main():
         replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         replication["master_repl_offset"] = 0
     
+    config = {}
+    config["dir"] = args.dir if args.dir else "."
+    config["dbfilename"] = args.dbfilename if args.dbfilename else "dump.rdb"
         
-    ctx = ServerContext(role=role,replication=replication)
+    ctx = ServerContext(role=role,replication=replication,config=config)
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),

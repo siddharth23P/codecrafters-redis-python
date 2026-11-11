@@ -14,6 +14,7 @@ class ServerContext:
     connected_clients: int = 0
     used_memory: int = 0
     replication:dict = field(default_factory=dict)
+    config: dict = field(default_factory=dict)  # configuration parameters
 
     def __post_init__(self):
         self.blocking = BlockingRegistry(self.store)
