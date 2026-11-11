@@ -4,7 +4,7 @@ import socket
 from ..PROTOCOL.encoder import encode
 
 
-def connect_to_master(replicaof, my_port):
+def connect_to_master(replicaof, my_port, replication):
     """replicaof is "host port". Returns the open socket to the master."""
     host, port = replicaof.split()
     conn = socket.create_connection((host, int(port)))
@@ -13,5 +13,10 @@ def connect_to_master(replicaof, my_port):
     conn.sendall(encode([b"REPLCONF",b"listening-port",str(my_port)]))
     conn.recv(1024)
     conn.sendall(encode([b"REPLCONF",b"capa",b"psync2"]))
+    conn.recv(1024)
+    conn.sendall(encode([b"PSYNC",
+                         replication.get("master_replid","?"),
+                         replication.get("master_repl_offset",-1)
+                         ]))
     conn.recv(1024)
     return conn

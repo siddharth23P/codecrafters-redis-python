@@ -47,6 +47,12 @@ class ConnectionCommands:
         if args[0] == "capa":
             capabilities = args[1]
         return SimpleString("OK")
+    
+    @register
+    def psync(self,args):
+        repl_id = str(args[0])
+        offset = int(args[1])
+        return SimpleString("FULLRESYNC {repl_id} {int}")
             
 
         
