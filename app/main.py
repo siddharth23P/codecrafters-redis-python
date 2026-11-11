@@ -35,7 +35,7 @@ def main():
     )
     
     if master:
-        server.attach_master(master,leftover)
+        server.attach_master(master,leftover, ctx.replication)
     server.serve_forever()
 
 

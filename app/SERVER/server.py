@@ -31,7 +31,9 @@ class RedisServer:
                 ticker.tick()
             self._resume(self._blocking.timed_out())
             
-    def attach_master(self, conn, leftover=b""):
+    def attach_master(self, conn, leftover=b"", replication=None):
+        self._replication = replication if replication is not None else {}
+        self._replication.setdefault("master_repl_offset", 0)
         conn.setblocking(False)
         self._buffers[conn] = leftover
         self._silent.add(conn)
@@ -74,6 +76,9 @@ class RedisServer:
                     self._blocking.wait(conn, reply)
                 elif conn not in self._silent or isinstance(reply, ToMaster):
                     conn.sendall(encode(reply))
+                
+                if conn in self._silent:
+                    self._replication["master_repl_offset"] += len(encode(request))
                 self._resume(self._blocking.served())  # this command may have fed a BLPOP client
         except Incomplete:
             pass
