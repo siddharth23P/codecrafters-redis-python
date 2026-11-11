@@ -16,7 +16,7 @@ def connect_to_master(replicaof, my_port, replication):
     conn.recv(1024)
     conn.sendall(encode([b"PSYNC",
                          replication.get("master_replid","?"),
-                         replication.get("master_repl_offset",-1)
+                         replication.get("master_repl_offset","-1")
                          ]))
     conn.recv(1024)
     return conn
