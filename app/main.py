@@ -17,8 +17,8 @@ def main():
     
     if args.replicaof:
         role = "slave"
-        replication["master_replid"] = "?"
-        replication["master_repl_offset"] = "-1"
+        replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+        replication["master_repl_offset"] = "0"
         master = connect_to_master(args.replicaof,args.port,replication)
     else:
         role = "master"
