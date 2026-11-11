@@ -17,6 +17,7 @@ class RedisServer:
         self._sel = selectors.DefaultSelector()
         self._buffers: dict[socket.socket, bytes] = {}  # unparsed bytes per connection
         self._parked: set[socket.socket] = set()        # connections waiting in BLPOP
+        self._silent: set[socket.socket] = set()        # master link: run commands, never reply
 
     def serve_forever(self):
         server = socket.create_server(self._address, reuse_port=True)
@@ -28,7 +29,14 @@ class RedisServer:
             for ticker in self._tickers:
                 ticker.tick()
             self._resume(self._blocking.timed_out())
-
+            
+    def attach_master(self, conn, leftover=b""):
+        conn.setblocking(False)
+        self._buffers[conn] = leftover
+        self._silent.add(conn)
+        self._sel.register(conn, selectors.EVENT_READ, self._read)
+        self._run(conn)
+    
     def _select_timeout(self):
         """Sleep until the next tick, or sooner if a BLPOP timeout is due."""
         due = self._blocking.next_timeout()
@@ -63,7 +71,7 @@ class RedisServer:
                 if isinstance(reply, Blocked):
                     self._parked.add(conn)
                     self._blocking.wait(conn, reply)
-                else:
+                elif conn not in self._silent:
                     conn.sendall(encode(reply))
                 self._resume(self._blocking.served())  # this command may have fed a BLPOP client
         except Incomplete:
@@ -89,4 +97,5 @@ class RedisServer:
         del self._buffers[conn]
         self._sel.unregister(conn)
         self._dispatcher.forget(conn)
+        self._silent.discard(conn)
         conn.close()

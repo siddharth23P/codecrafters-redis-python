@@ -14,15 +14,16 @@ def main():
     
     print(f"Running Redis Server on port {args.port}")
     replication = {}
+    master = None
     
     if args.replicaof:
         role = "slave"
-        master = connect_to_master(args.replicaof,args.port,replication)
+        master, leftover = connect_to_master(args.replicaof,args.port,replication)
     else:
         role = "master"
         replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
         replication["master_repl_offset"] = 0
-        
+    
         
     ctx = ServerContext(role=role,replication=replication)
     load_commands(ctx)  # fills ctx.registry
@@ -32,6 +33,9 @@ def main():
         blocking=ctx.blocking,
         tickers=[ActiveExpirer(ctx.store)],
     )
+    
+    if master:
+        server.attach_master(master,leftover)
     server.serve_forever()
 
 

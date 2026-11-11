@@ -5,18 +5,28 @@ from ..PROTOCOL.encoder import encode
 
 
 def connect_to_master(replicaof, my_port, replication):
-    """replicaof is "host port". Returns the open socket to the master."""
+    """Handshake with master. Returns (socket, leftover bytes after the RDB)."""
     host, port = replicaof.split()
     conn = socket.create_connection((host, int(port)))
-    conn.sendall(encode([b"PING"]))
-    conn.recv(1024)
-    conn.sendall(encode([b"REPLCONF",b"listening-port",str(my_port)]))
-    conn.recv(1024)
-    conn.sendall(encode([b"REPLCONF",b"capa",b"psync2"]))
-    conn.recv(1024)
-    conn.sendall(encode([b"PSYNC",
-                         replication.get("master_replid","?"),
-                         replication.get("master_repl_offset","-1")
-                         ]))
-    conn.recv(1024)
-    return conn
+    buf = b""
+    for cmd in ([b"PING"],
+                [b"REPLCONF", b"listening-port", str(my_port)],
+                [b"REPLCONF", b"capa", b"psync2"],
+                [b"PSYNC", b"?", b"-1"]):
+        conn.sendall(encode(cmd))
+        _, buf = _read_line(conn, buf)
+    leftover = _read_rdb(conn, buf)
+    return conn, leftover
+
+def _read_line(conn, buf):
+    while b"\r\n" not in buf:
+        buf += conn.recv(1024)
+    line, _, rest = buf.partition(b"\r\n")
+    return line, rest
+
+def _read_rdb(conn, buf):
+    header, buf = _read_line(conn, buf)          # b"$88"
+    size = int(header[1:])
+    while len(buf) < size:
+        buf += conn.recv(1024)
+    return buf[size:] 
