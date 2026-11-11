@@ -29,13 +29,13 @@ def main():
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),
-        dispatcher=CommandDispatcher(ctx.registry),
+        dispatcher=CommandDispatcher(ctx.registry, ctx.blocking),
         blocking=ctx.blocking,
         tickers=[ActiveExpirer(ctx.store)],
     )
     
     if master:
-        server.attach_master(master,leftover, ctx.replication, ctx.blocking)
+        server.attach_master(master,leftover, ctx.replication)
     server.serve_forever()
 
 
