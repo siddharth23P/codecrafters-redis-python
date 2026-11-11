@@ -1,7 +1,7 @@
 """Connection commands: PING, ECHO."""
 from . import check_arity, register, registered_commands
 from ..PROTOCOL.encoder import encode
-from ..PROTOCOL.resp_types import SimpleString, BulkString, Raw
+from ..PROTOCOL.resp_types import SimpleString, BulkString, Raw, Array, ToMaster
 
 EMPTY_RDB = bytes.fromhex(
     "524544495330303131fa0972656469732d76657205372e322e30"
@@ -49,10 +49,10 @@ class ConnectionCommands:
     
     @register
     def replconf(self, args):
-        if args[0] == "listening_port":
-            slave_port = int(args[1])
-        if args[0] == "capa":
-            capabilities = args[1]
+        check_arity(args, "replconf", len(args) >= 1)
+        if args[0].lower() == b"getack":
+            offset = self.__replication.get("master_repl_offset", 0)
+            return ToMaster([b"REPLCONF", b"ACK", str(offset).encode()])
         return SimpleString("OK")
     
     @register
@@ -60,9 +60,12 @@ class ConnectionCommands:
         check_arity(args, "psync", len(args) == 2)
         repl_id = self.__replication["master_replid"]
         offset = self.__replication["master_repl_offset"]
-        header = encode(SimpleString(f"FULLRESYNC {repl_id} {offset}"))
-        rdb = b"$%d\r\n" % len(EMPTY_RDB) + EMPTY_RDB
-        return Raw(header + rdb)
-            
+        return self.send_file(header=SimpleString(f"FULLRESYNC {repl_id} {offset}"))
 
+    @staticmethod
+    def send_file(RDB_FILE=EMPTY_RDB, header=None):
+        """header (e.g. +FULLRESYNC) then the RDB as $len\\r\\n<bytes> with no trailing CRLF."""
+        header = encode(header)
+        rdb = b"$%d\r\n" % len(RDB_FILE) + RDB_FILE
+        return Raw(header + rdb)
         

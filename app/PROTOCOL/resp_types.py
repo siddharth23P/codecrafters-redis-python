@@ -41,6 +41,12 @@ class Raw:
     data: bytes
 
 
+@dataclass(frozen=True)
+class ToMaster:
+    """Reply that must reach the master even on the silent replication link (e.g. REPLCONF ACK)."""
+    value: object
+
+
 class CommandError(Exception):
     """Raised by a command for bad usage; sent to the client as `-<prefix> <message>`."""
     prefix = "ERR"

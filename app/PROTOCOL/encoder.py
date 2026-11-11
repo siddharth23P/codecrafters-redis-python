@@ -1,9 +1,11 @@
 """Turn reply values into RESP bytes."""
-from .resp_types import Array, BulkString, ErrorReply, Integer, SimpleString, Raw
+from .resp_types import Array, BulkString, ErrorReply, Integer, SimpleString, Raw, ToMaster
 
 
 def encode(value) -> bytes:
     match value:
+        case ToMaster():
+            return encode(value.value)
         case SimpleString():
             return b"+%s\r\n" % value.value.encode()
         case ErrorReply():

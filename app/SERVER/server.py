@@ -4,6 +4,7 @@ import socket
 
 from .blocking import Blocked
 from ..PROTOCOL.encoder import encode
+from ..PROTOCOL.resp_types import ToMaster
 from ..PROTOCOL.parser import Incomplete, ProtocolError, parse
 
 
@@ -71,7 +72,7 @@ class RedisServer:
                 if isinstance(reply, Blocked):
                     self._parked.add(conn)
                     self._blocking.wait(conn, reply)
-                elif conn not in self._silent:
+                elif conn not in self._silent or isinstance(reply, ToMaster):
                     conn.sendall(encode(reply))
                 self._resume(self._blocking.served())  # this command may have fed a BLPOP client
         except Incomplete:
