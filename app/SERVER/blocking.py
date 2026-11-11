@@ -12,17 +12,6 @@ class Blocked:
     timeout: float | None  # seconds; None = wait forever
     serve: callable
     on_timeout: callable | None = None  # called if the client times out before being served
-    
-    def timed_out(self):
-        now = time.monotonic()
-        expired = [c for c, (_, deadline) in self._waiting.items()
-                   if deadline is not None and deadline <= now]
-        replies = []
-        for client in expired:
-            blocked, _ = self._waiting[client]
-            self.remove(client)
-            replies.append((client, blocked.on_timeout() if blocked.on_timeout else Array(None)))
-        return replies
 
 class BlockingRegistry:
     def __init__(self, store):
@@ -69,13 +58,16 @@ class BlockingRegistry:
         return replies
 
     def timed_out(self):
-        """Remove clients past their deadline. Return [(client, null array reply)]."""
+        """Remove clients past their deadline. Return [(client, on_timeout() or null array)]."""
         now = time.monotonic()
         expired = [c for c, (_, deadline) in self._waiting.items()
                    if deadline is not None and deadline <= now]
+        replies = []
         for client in expired:
+            blocked, _ = self._waiting[client]
             self.remove(client)
-        return [(client, Array(None)) for client in expired]
+            replies.append((client, blocked.on_timeout() if blocked.on_timeout else Array(None)))
+        return replies
 
     def next_timeout(self):
         """Seconds until the earliest deadline, or None if no client has one."""

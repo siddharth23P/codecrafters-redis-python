@@ -74,7 +74,7 @@ class RedisServer:
                 if isinstance(reply, Blocked):
                     self._parked.add(conn)
                     self._blocking.wait(conn, reply)
-                if isinstance(reply, NoReply):
+                elif isinstance(reply, NoReply):
                     pass  # don't send anything back to the client
                 elif conn not in self._silent or isinstance(reply, ToMaster):
                     conn.sendall(encode(reply))
