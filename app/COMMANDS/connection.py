@@ -51,8 +51,9 @@ class ConnectionCommands:
     @register
     def psync(self,args):
         repl_id = str(args[0])
-        offset = int(args[1])
-        return SimpleString("FULLRESYNC {repl_id} {int}")
+        if int(args[1]) == -1:
+            offset = 0
+        return SimpleString(f"FULLRESYNC {repl_id} {offset}")
             
 
         
