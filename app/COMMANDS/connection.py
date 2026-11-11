@@ -39,5 +39,14 @@ class ConnectionCommands:
                              used_memory=self.__used_memory)
         text = "\r\n".join(f"{k}:{v}" for k, v in info_dump.items())
         return BulkString(text.encode())
+    
+    @register
+    def replconf(self, args):
+        if args[0] == "listening_port":
+            slave_port = int(args[1])
+        if args[0] == "capa":
+            capabilities = args[1]
+        return SimpleString("OK")
+            
 
         
