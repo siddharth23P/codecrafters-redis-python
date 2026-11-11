@@ -11,7 +11,18 @@ class Blocked:
     keys: list
     timeout: float | None  # seconds; None = wait forever
     serve: callable
-
+    on_timeout: callable | None = None  # called if the client times out before being served
+    
+    def timed_out(self):
+        now = time.monotonic()
+        expired = [c for c, (_, deadline) in self._waiting.items()
+                   if deadline is not None and deadline <= now]
+        replies = []
+        for client in expired:
+            blocked, _ = self._waiting[client]
+            self.remove(client)
+            replies.append((client, blocked.on_timeout() if blocked.on_timeout else Array(None)))
+        return replies
 
 class BlockingRegistry:
     def __init__(self, store):

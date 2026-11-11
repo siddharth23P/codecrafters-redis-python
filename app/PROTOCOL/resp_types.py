@@ -46,6 +46,10 @@ class ToMaster:
     """Reply that must reach the master even on the silent replication link (e.g. REPLCONF ACK)."""
     value: object
 
+@dataclass(frozen=True)
+class NoReply:
+    """Command handled; send nothing back (e.g. REPLCONF ACK from a replica)."""
+
 
 class CommandError(Exception):
     """Raised by a command for bad usage; sent to the client as `-<prefix> <message>`."""

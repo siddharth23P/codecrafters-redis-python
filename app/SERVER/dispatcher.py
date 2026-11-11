@@ -1,19 +1,25 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
 from typing import Any, Callable, Mapping
+from .blocking import Blocked
 from ..PROTOCOL.encoder import encode
-from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString, Array
+from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString, Array, NoReply
+
+WAIT_KEY = b"\x00wait"
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
 WRITE_COMMANDS = {"set", "incr", "rpush", "lpush", "lpop", "blpop", "xadd"}
 
 class CommandDispatcher:
-    def __init__(self, registry: Mapping[str, Command]):
+    def __init__(self, registry: Mapping[str, Command], blocking):
         self._registry = registry  # name -> command, filled by COMMANDS.load
         self._transactions = {}
         self._watching = {}
         self._dirty = set()
         self._replicas = set()
+        self._blocking = blocking
+        self._repl_offset = 0
+        self._acked = {}
 
     def execute(self,conn, request: Any) -> Any:
         """Run one request (e.g. [b'ECHO', b'hey']) and return its reply value."""
@@ -56,6 +62,14 @@ class CommandDispatcher:
             self._unwatch(conn)
             return SimpleString("OK")
         
+        if name == "replconf" and len(request) >= 3 and request[1].lower() == b"ack":
+            self._acked[conn] = int(request[2])
+            self._blocking.notify(WAIT_KEY)
+            return NoReply()
+        
+        if name == "wait":
+            return self._wait(request[1:])
+        
         if queue is not None:
             queue.append(request)
             return SimpleString("QUEUED")
@@ -71,6 +85,25 @@ class CommandDispatcher:
         self._transactions.pop(conn, None)
         self._unwatch(conn)
         self._replicas.discard(conn)
+        self._acked.pop(conn, None)
+        
+    def _wait(self, args):
+        if len(args) != 2:
+            return ErrorReply("ERR wrong number of arguments for 'wait' command")
+        needed, timeout_ms = int(args[0]), int(args[1])
+        target = self._repl_offset
+        if target == 0:
+            return len(self._replicas)
+        
+        def count():
+            return sum(1 for r in self._replicas if self._acked.get(r, 0) >= target)
+        
+        self._propagate([b"REPLCONF",b"GETACK",b"*"])
+        return Blocked(
+            keys=[WAIT_KEY],
+            timeout=timeout_ms / 1000 if timeout_ms else None,
+            serve=lambda _key: count() if count() >= needed else None,
+            on_timeout=count)
         
     def _unwatch(self,conn):
         self._dirty.discard(conn)
@@ -94,6 +127,7 @@ class CommandDispatcher:
     
     def _propagate(self, request):
         data = encode(request)
+        self._repl_offset += len(data)
         for replica in list(self._replicas):
             try:
                 replica.sendall(data)
