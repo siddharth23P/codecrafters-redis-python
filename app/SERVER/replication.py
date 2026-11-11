@@ -9,6 +9,9 @@ def connect_to_master(replicaof, my_port):
     host, port = replicaof.split()
     conn = socket.create_connection((host, int(port)))
     conn.sendall(encode([b"PING"]))
+    conn.recv(1024)
     conn.sendall(encode([b"REPLCONF",b"listening-port",str(my_port)]))
+    conn.recv(1024)
     conn.sendall(encode([b"REPLCONF",b"capa",b"psync2"]))
+    conn.recv(1024)
     return conn
