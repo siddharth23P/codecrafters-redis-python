@@ -1,6 +1,6 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
 from typing import Any, Callable, Mapping
-
+from ..PROTOCOL.encoder import encode
 from ..PROTOCOL.resp_types import CommandError, ErrorReply, SimpleString, Array
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
@@ -13,6 +13,7 @@ class CommandDispatcher:
         self._transactions = {}
         self._watching = {}
         self._dirty = set()
+        self._replicas = set()
 
     def execute(self,conn, request: Any) -> Any:
         """Run one request (e.g. [b'ECHO', b'hey']) and return its reply value."""
@@ -59,13 +60,17 @@ class CommandDispatcher:
             queue.append(request)
             return SimpleString("QUEUED")
         
-        return self._run(request)
+        reply = self._run(request)
+        if name == "psync" and not isinstance(reply, ErrorReply):
+            self._replicas.add(conn)
+        return reply
         
         
     def forget(self, conn):
         """Drop a closed connection's transaction."""
         self._transactions.pop(conn, None)
         self._unwatch(conn)
+        self._replicas.discard(conn)
         
     def _unwatch(self,conn):
         self._dirty.discard(conn)
@@ -84,6 +89,15 @@ class CommandDispatcher:
         
         if name in WRITE_COMMANDS and len(request) > 1:
             self._dirty.update(self._watching.get(request[1],()))
+            self._propagate(request)
         return reply
+    
+    def _propagate(self, request):
+        data = encode(request)
+        for replica in list(self._replicas):
+            try:
+                replica.sendall(data)
+            except OSError:
+                self._replicas.discard(replica)
         
         
