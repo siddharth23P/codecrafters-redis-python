@@ -1,7 +1,14 @@
 """Connection commands: PING, ECHO."""
 from . import check_arity, register, registered_commands
-from ..PROTOCOL.resp_types import SimpleString, BulkString
+from ..PROTOCOL.encoder import encode
+from ..PROTOCOL.resp_types import SimpleString, BulkString, Raw
 
+EMPTY_RDB = bytes.fromhex(
+    "524544495330303131fa0972656469732d76657205372e322e30"
+    "fa0a72656469732d62697473c040fa056374696d65c26d08bc65"
+    "fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000"
+    "fff06e3bfec0ff5aa2"
+)
 
 def create(ctx):
     return registered_commands(ConnectionCommands(ctx))
@@ -53,7 +60,9 @@ class ConnectionCommands:
         check_arity(args, "psync", len(args) == 2)
         repl_id = self.__replication["master_replid"]
         offset = self.__replication["master_repl_offset"]
-        return SimpleString(f"FULLRESYNC {repl_id} {offset}")
+        header = encode(SimpleString(f"FULLRESYNC {repl_id} {offset}"))
+        rdb = b"$%d\r\n" % len(EMPTY_RDB) + EMPTY_RDB
+        return Raw(header + rdb)
             
 
         

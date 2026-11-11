@@ -34,6 +34,11 @@ class BulkString:
 class Array:
     """Reply sent as `*count` + each item encoded. None is sent as the null array `*-1`."""
     items: list | tuple | None
+    
+@dataclass(frozen=True)
+class Raw:
+    """Bytes sent as-is, no RESP framing (e.g. FULLRESYNC + RDB payload)."""
+    data: bytes
 
 
 class CommandError(Exception):
