@@ -50,9 +50,9 @@ class ConnectionCommands:
     
     @register
     def psync(self,args):
-        repl_id = str(args[0])
-        if int(args[1]) == -1:
-            offset = 0
+        check_arity(args, "psync", len(args) == 2)
+        repl_id = self.__replication["master_replid"]
+        offset = self.__replication["master_repl_offset"]
         return SimpleString(f"FULLRESYNC {repl_id} {offset}")
             
 
