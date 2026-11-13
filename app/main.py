@@ -1,4 +1,5 @@
 import argparse
+import os
 from .COMMANDS import load as load_commands
 from .SERVER.context import ServerContext
 from .SERVER.dispatcher import CommandDispatcher
@@ -28,7 +29,7 @@ def main():
         replication["master_repl_offset"] = 0
     
     config = {}
-    config["dir"] = args.dir if args.dir else "."
+    config["dir"] = os.path.abspath(args.dir or ".")  # Redis reports dir as an absolute path; default is cwd
     config["dbfilename"] = args.dbfilename if args.dbfilename else "dump.rdb"
         
     ctx = ServerContext(role=role,replication=replication,config=config)

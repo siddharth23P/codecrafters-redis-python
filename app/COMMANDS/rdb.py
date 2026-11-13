@@ -34,6 +34,18 @@ class RDBCommands:
         if b'dbfilename' in params:
             reply.append(BulkString(b'dbfilename'))
             reply.append(BulkString(self._config['dbfilename'].encode()))
+        if b'appendonly' in params:
+            reply.append(BulkString(b'appendonly'))
+            reply.append(BulkString(b'no'))  # appendonly is not supported in this implementation
+        if b'appenddirname' in params:
+            reply.append(BulkString(b'appenddirname'))
+            reply.append(BulkString(b'appendonlydir'))  # appenddirname is not supported in this implementation  
+        if b'appendfilename' in params:
+            reply.append(BulkString(b'appendfilename'))
+            reply.append(BulkString(b'appendonly.aof'))  # appendfilename is not supported in this implementation
+        if b'appendfsync' in params:
+            reply.append(BulkString(b'appendfsync'))
+            reply.append(BulkString(b'everysec'))  # appendfsync is not supported in this implementation
         
         return BulkString([r for r in reply]) if reply else BulkString([])
             
