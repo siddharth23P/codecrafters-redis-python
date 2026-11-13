@@ -5,6 +5,7 @@ from .SERVER.dispatcher import CommandDispatcher
 from .SERVER.expiry import ActiveExpirer
 from .SERVER.server import RedisServer
 from .SERVER.replication import connect_to_master
+from .SERVER import rdb_loader
 
 def main():
     parser = argparse.ArgumentParser()
@@ -31,6 +32,7 @@ def main():
     config["dbfilename"] = args.dbfilename if args.dbfilename else "dump.rdb"
         
     ctx = ServerContext(role=role,replication=replication,config=config)
+    rdb_loader.load(ctx.config, ctx.store)  # restore keys from dir/dbfilename, if present
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),

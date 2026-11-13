@@ -46,3 +46,13 @@ class StringCommands:
             del self._store[args[0]]  # lazy expiry: remove on read
             return None
         return value
+    
+    @register
+    def keys(self, args):
+        """KEYS pattern -> list of keys matching the pattern"""
+        check_arity(args, "keys", len(args) == 1)
+        pattern = args[0]
+        if pattern == b'*':
+            return list(self._store.keys())
+        else:
+            raise CommandError("Only '*' pattern is supported in KEYS command")
