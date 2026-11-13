@@ -47,7 +47,7 @@ def main():
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),
-        dispatcher=CommandDispatcher(ctx.registry, ctx.blocking),
+        dispatcher=CommandDispatcher(ctx.registry, ctx.blocking, ctx.config),
         blocking=ctx.blocking,
         tickers=[ActiveExpirer(ctx.store)],
     )

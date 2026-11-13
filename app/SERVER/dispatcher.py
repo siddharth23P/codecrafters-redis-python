@@ -1,4 +1,5 @@
 """Route a parsed command to its handler. Knows nothing about sockets or RESP bytes."""
+import os
 from typing import Any, Callable, Mapping
 from .blocking import Blocked
 from ..PROTOCOL.encoder import encode
@@ -11,7 +12,7 @@ Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 WRITE_COMMANDS = {"set", "incr", "rpush", "lpush", "lpop", "blpop", "xadd"}
 
 class CommandDispatcher:
-    def __init__(self, registry: Mapping[str, Command], blocking):
+    def __init__(self, registry: Mapping[str, Command], blocking, config):
         self._registry = registry  # name -> command, filled by COMMANDS.load
         self._transactions = {}
         self._watching = {}
@@ -20,6 +21,32 @@ class CommandDispatcher:
         self._blocking = blocking
         self._repl_offset = 0
         self._acked = {}
+        self._aof = config.get("appendonly", "no").lower() == "yes"
+        self._aof_fsync = config.get("appendfsync", "everysec").lower()
+        # Same file aof.init created: <dir>/<appenddirname>/<appendfilename>.1.incr.aof
+        self._aof_path = os.path.join(
+            config.get("dir", "."),
+            config.get("appenddirname", "appendonlydir"),
+            f"{config.get('appendfilename', 'appendonly.aof')}.1.incr.aof",
+        )
+
+    def _open_aof_file(self):
+        if self._aof:
+            self._aof_file = open(self._aof_path, "ab")
+
+    def _close_aof_file(self):
+        if self._aof:
+            self._aof_file.close()
+            
+    def _write_aof(self, request):
+        if self._aof:
+            self._open_aof_file()
+            data = encode(request)
+            self._aof_file.write(data)
+            self._aof_file.flush()
+            if self._aof_fsync == "always":
+                os.fsync(self._aof_file.fileno())
+            self._close_aof_file()
 
     def execute(self,conn, request: Any) -> Any:
         """Run one request (e.g. [b'ECHO', b'hey']) and return its reply value."""
@@ -121,6 +148,7 @@ class CommandDispatcher:
             return ErrorReply(f"{e.prefix} {e}")
         
         if name in WRITE_COMMANDS and len(request) > 1:
+            self._write_aof(request)
             self._dirty.update(self._watching.get(request[1],()))
             self._propagate(request)
         return reply
