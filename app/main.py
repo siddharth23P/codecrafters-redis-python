@@ -14,6 +14,10 @@ def main():
     parser.add_argument("--replicaof", type=str, default=None)
     parser.add_argument("--dir", type=str, default=None)
     parser.add_argument("--dbfilename", type=str, default=None)
+    parser.add_argument("--appendonly", type=str, default=None)
+    parser.add_argument("--appenddirname", type=str, default=None)
+    parser.add_argument("--appendfilename", type=str, default=None)
+    parser.add_argument("--appendfsync", type=str, default=None)
     args = parser.parse_args()
     
     print(f"Running Redis Server on port {args.port}")
@@ -31,6 +35,10 @@ def main():
     config = {}
     config["dir"] = os.path.abspath(args.dir or ".")  # Redis reports dir as an absolute path; default is cwd
     config["dbfilename"] = args.dbfilename if args.dbfilename else "dump.rdb"
+    config["appendonly"] = args.appendonly if args.appendonly else "no"
+    config["appenddirname"] = args.appenddirname if args.appenddirname else "appendonlydir"
+    config["appendfilename"] = args.appendfilename if args.appendfilename else "appendonly.aof"
+    config["appendfsync"] = args.appendfsync if args.appendfsync else "everysec"
         
     ctx = ServerContext(role=role,replication=replication,config=config)
     rdb_loader.load(ctx.config, ctx.store)  # restore keys from dir/dbfilename, if present
