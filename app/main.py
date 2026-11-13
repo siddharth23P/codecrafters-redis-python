@@ -7,6 +7,7 @@ from .SERVER.expiry import ActiveExpirer
 from .SERVER.server import RedisServer
 from .SERVER.replication import connect_to_master
 from .SERVER import rdb_loader
+from .SERVER import aof
 
 def main():
     parser = argparse.ArgumentParser()
@@ -33,7 +34,7 @@ def main():
         replication["master_repl_offset"] = 0
     
     config = {}
-    config["dir"] = os.path.abspath(args.dir or ".")  # Redis reports dir as an absolute path; default is cwd
+    config["dir"] = os.path.abspath(args.dir or ".")
     config["dbfilename"] = args.dbfilename if args.dbfilename else "dump.rdb"
     config["appendonly"] = args.appendonly if args.appendonly else "no"
     config["appenddirname"] = args.appenddirname if args.appenddirname else "appendonlydir"
@@ -42,6 +43,7 @@ def main():
         
     ctx = ServerContext(role=role,replication=replication,config=config)
     rdb_loader.load(ctx.config, ctx.store)  # restore keys from dir/dbfilename, if present
+    aof.init(ctx.config)  # create AOF dir + files when appendonly is yes
     load_commands(ctx)  # fills ctx.registry
     server = RedisServer(
         ("localhost", args.port),
