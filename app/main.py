@@ -45,6 +45,7 @@ def main():
     rdb_loader.load(ctx.config, ctx.store)  # restore keys from dir/dbfilename, if present
     aof.init(ctx.config)  # create AOF dir + files when appendonly is yes
     load_commands(ctx)  # fills ctx.registry
+    aof.replay(ctx.config, ctx.registry)  # rebuild store from AOF commands
     server = RedisServer(
         ("localhost", args.port),
         dispatcher=CommandDispatcher(ctx.registry, ctx.blocking, ctx.config),
