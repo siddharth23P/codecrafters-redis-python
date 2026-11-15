@@ -1,8 +1,4 @@
-import time
-from collections import OrderedDict
-
-from ..PROTOCOL.resp_types import Array, BulkString, CommandError, WrongTypeError
-from ..SERVER.blocking import Blocked
+from ..PROTOCOL.resp_types import BulkString, WrongTypeError
 from . import check_arity, register, registered_commands, to_int
 from ..DATASTRUCTURES.sortedsets import SortedSet
 
@@ -11,13 +7,12 @@ MAX_ID = (float("inf"), float("inf"))
 
 
 def create(ctx):
-    return registered_commands(SortedSetsCommands(ctx.store, ctx.blocking))
+    return registered_commands(SortedSetsCommands(ctx.store))
 
 
 class SortedSetsCommands:
-    def __init__(self, store, blocking):
+    def __init__(self, store):
         self._store = store
-        self._blocking = blocking
     
     def _zget(self, key):
         """Return the SortedSet at key, or None. Store entries are [value, expires_at]."""
