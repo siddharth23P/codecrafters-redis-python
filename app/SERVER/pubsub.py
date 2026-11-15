@@ -20,3 +20,14 @@ class PUBSUB:
             replies.append([b"subscribe", channel, len(mine)])
         return replies
     
+    def is_subscribed(self, conn):
+        return conn in self._channels
+    
+    def forget(self, conn):
+        """Drop all state for a closed connection."""
+        channels = self._channels.pop(conn, set())
+        for channel in channels:
+            self._subscribers[channel].discard(conn)
+            if not self._subscribers[channel]:
+                del self._subscribers[channel]
+    

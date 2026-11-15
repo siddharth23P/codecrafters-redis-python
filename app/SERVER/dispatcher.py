@@ -12,6 +12,7 @@ Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
 # Commands that change the store: logged to the AOF, propagated to replicas, and dirty WATCHed keys.
 WRITE_COMMANDS = {"set", "incr", "rpush", "lpush", "lpop", "blpop", "xadd"}
+SUBSCRIBED_MODE_ALLOWED = {"subscribe", "unsubscribe", "psubscribe", "punsubscribe", "ping", "quit", "reset"}
 
 OK = SimpleString("OK")
 
@@ -48,6 +49,14 @@ class CommandDispatcher:
         if name == "replconf" and len(request) >= 3 and request[1].lower() == b"ack":
             self._replicas.ack(conn, int(request[2]))
             return NoReply()
+        
+        if self._pubsub.is_subscribed(conn):
+            if name not in SUBSCRIBED_MODE_ALLOWED:
+                return ErrorReply(f"ERR Can't execute '{name}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context")
+
+            if name == "ping":
+                return Array([b"pong", request[1] if len(request) > 1 else b""])
+        
         handler = self._per_connection.get(name)
         if handler is not None:
             return handler(conn, request[1:])
@@ -67,6 +76,7 @@ class CommandDispatcher:
         self._transactions.pop(conn, None)
         self._unwatch(conn)
         self._replicas.discard(conn)
+        self._pubsub.forget(conn)
 
     # --- per-connection commands ---
 
