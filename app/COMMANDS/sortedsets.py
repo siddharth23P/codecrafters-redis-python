@@ -69,5 +69,46 @@ class SortedSetsCommands:
             return [BulkString(member) for member, score in result] + [BulkString(str(score).encode()) for member, score in result]
         else:
             return [BulkString(member) for member, score in result]
+    
+    @register
+    def zcard(self, args):
+        check_arity("zcard", len(args) == 1)
+        key = args[0]
+        entries = self._store.get(key)
+        if entries is None:
+            return 0
+        elif not isinstance(entries, SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        return len(entries)
+    
+    @register
+    def zscore(self, args):
+        check_arity("zscore", len(args) == 2)
+        key, member = args
+        entries = self._store.get(key)
+        if entries is None:
+            return None
+        elif not isinstance(entries, SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        score = entries.score(member)
+        if score is None:
+            return None
+        return BulkString(str(score).encode())
+    
+    @register
+    def zrem(self, args):
+        check_arity("zrem", len(args) >= 2)
+        key, *members = args
+        entries = self._store.get(key)
+        if entries is None:
+            return 0
+        elif not isinstance(entries, SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        removed = 0
+        for member in members:
+            if member in entries:
+                entries.remove(member)
+                removed += 1
+        return removed
         
     
