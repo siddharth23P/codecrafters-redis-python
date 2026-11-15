@@ -40,3 +40,34 @@ class SortedSetsCommands:
             if entries.add(member, score):
                 key_added += 1
         return key_added
+    
+    @register
+    def zrank(self, args):
+        check_arity("zrank", len(args) == 2)
+        key, member = args
+        entries = self._store.get(key)
+        if entries is None:
+            return None
+        elif not isinstance(entries, SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        rank = entries.rank(member)
+        return rank
+    
+    @register
+    def zrange(self, args):
+        check_arity("zrange", len(args) in (3, 4))
+        key, start, stop = args[:3]
+        withscores = len(args) == 4 and args[3].lower() == b"withscores"
+        entries = self._store.get(key)
+        if entries is None:
+            return []
+        elif not isinstance(entries, SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        start, stop = to_int(start), to_int(stop)
+        result = entries.range(start, stop)
+        if withscores:
+            return [BulkString(member) for member, score in result for BulkString(str(score).encode())]
+        else:
+            return [BulkString(member) for member, score in result]
+        
+    
