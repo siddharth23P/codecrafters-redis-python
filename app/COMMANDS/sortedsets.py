@@ -37,7 +37,6 @@ class SortedSetsCommands:
         for i in range(0, len(pairs), 2):
             score = float(pairs[i])
             member = pairs[i + 1]
-            if entries.search(score) is None:
-                entries.insert(member, score)
+            if entries.add(member, score):
                 key_added += 1
         return key_added
