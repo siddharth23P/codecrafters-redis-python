@@ -6,7 +6,7 @@ REPLCONF ACK) itself; everything else goes to the command registry.
 from typing import Any, Callable, Mapping
 
 from ..PROTOCOL.encoder import encode
-from ..PROTOCOL.resp_types import Array, CommandError, ErrorReply, NoReply, Raw, SimpleString
+from ..PROTOCOL.resp_types import Array, CommandError, ErrorReply, Integer, NoReply, Raw, SimpleString
 
 Command = Callable[[list], Any]  # args (list of bytes) -> reply value
 
@@ -38,6 +38,7 @@ class CommandDispatcher:
             "unwatch": self._unwatch_command,
             "wait": self._wait,
             "subscribe": self._subscribe,
+            "publish": self._publish,
         }
 
     def execute(self, conn, request: Any) -> Any:
@@ -89,6 +90,13 @@ class CommandDispatcher:
     def _subscribe(self, conn, channels):
         replies = self._pubsub.subscribe(conn, channels)
         return Raw(b"".join(encode(r) for r in replies))
+    
+    def _publish(self, _conn, args):
+        if len(args) != 2:
+            return ErrorReply("ERR wrong number of arguments for 'publish' command")
+        channel, message = args
+        self._pubsub.publish(channel, message)
+        return Integer(len(self._pubsub._subscribers.get(channel, set())))
 
     def _exec(self, conn, _args):
         queue = self._transactions.pop(conn, None)
