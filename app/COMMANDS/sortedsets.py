@@ -110,5 +110,3 @@ class SortedSetsCommands:
                 entries.remove(member)
                 removed += 1
         return removed
-        
-    
