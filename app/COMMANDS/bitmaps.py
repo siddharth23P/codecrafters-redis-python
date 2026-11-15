@@ -54,11 +54,29 @@ class BitMapsCommands:
     @register
     def bitcount(self, args):
         """BITCOUNT key -> number of bits set to 1 in the string value, or 0 if missing"""
-        check_arity("bitcount", len(args) == 1)
+        check_arity("bitcount", len(args) in (1, 3))
         key = args[0]
         entry = self._entry(key)
-        return Integer(self._bitmaps.count(entry[0]) if entry else 0)
-
+        if entry is None:
+            return Integer(0)
+        bitmap = entry[0]
+        if len(args) == 1:
+            return Integer(self._bitmaps.count(bitmap))
+        start, end = int(args[1]), int(args[2])
+        
+        if start < 0:
+            start = max(0, start + len(bitmap))
+        if end < 0:
+            end = max(0, end + len(bitmap))
+            
+        if end >= len(bitmap):
+            end = len(bitmap) - 1
+            
+        if start > end:
+            return Integer(0)
+        
+        return Integer(self._bitmaps.count(bitmap[start:end + 1]))
+    
     def _entry(self, key):
         """(value, expires_at) for a live string key, else None. Expired keys are deleted."""
         entry = self._store.get(key)
