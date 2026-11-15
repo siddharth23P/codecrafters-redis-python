@@ -104,6 +104,28 @@ class SortedSet:
             if m == member:
                 return i
 
+    def range(self, start, stop):
+        """(member, score) pairs from rank `start` to `stop`, inclusive.
+
+        Redis semantics: negative indices count from the end; out-of-range
+        indices are clamped; an empty list if start > stop after clamping.
+        """
+        n = len(self)
+        if start < 0:
+            start = max(n + start, 0)
+        if stop < 0:
+            stop = n + stop
+        stop = min(stop, n - 1)
+        if start > stop:
+            return []
+        result = []
+        for i, pair in enumerate(self):
+            if i > stop:
+                break
+            if i >= start:
+                result.append(pair)
+        return result
+
     def __iter__(self):
         """Yield (member, score) pairs in ascending order."""
         node = self.header.forward[0]
