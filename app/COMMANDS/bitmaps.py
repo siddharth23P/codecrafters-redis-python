@@ -42,6 +42,14 @@ class BitMapsCommands:
         offset = _offset(offset)
         entry = self._entry(key)
         return Integer(self._bitmaps.getbit(entry[0], offset) if entry else 0)
+    
+    @register
+    def strlen(self, args):
+        """STRLEN key -> length of the string value, or 0 if missing"""
+        check_arity("strlen", len(args) == 1)
+        key = args[0]
+        entry = self._entry(key)
+        return Integer(len(entry[0]) if entry else 0)
 
     def _entry(self, key):
         """(value, expires_at) for a live string key, else None. Expired keys are deleted."""
