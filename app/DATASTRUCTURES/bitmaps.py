@@ -35,38 +35,27 @@ class BitMaps:
             return 0
         return sum(bin(byte).count("1") for byte in bitmap)
     
-    def opand(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
-        if bitmap1 is None or bitmap2 is None:
-            return b""
-        length = min(len(bitmap1), len(bitmap2))
-        return bytes(b1 & b2 for b1, b2 in zip(bitmap1[:length], bitmap2[:length]))
-    
-    def opor(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
-        if bitmap1 is None:
-            return bitmap2 or b""
-        if bitmap2 is None:
-            return bitmap1 or b""
-        length = max(len(bitmap1), len(bitmap2))
+    def _combine(self, bitmaps, fn) -> bytes:
+        """Apply fn bytewise across bitmaps; shorter inputs are zero-padded to the longest."""
+        bitmaps = [b or b"" for b in bitmaps]
+        length = max((len(b) for b in bitmaps), default=0)
         result = bytearray(length)
         for i in range(length):
-            b1 = bitmap1[i] if i < len(bitmap1) else 0
-            b2 = bitmap2[i] if i < len(bitmap2) else 0
-            result[i] = b1 | b2
+            acc = bitmaps[0][i] if i < len(bitmaps[0]) else 0
+            for b in bitmaps[1:]:
+                acc = fn(acc, b[i] if i < len(b) else 0)
+            result[i] = acc
         return bytes(result)
-    
-    def opxor(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
-        if bitmap1 is None:
-            return bitmap2 or b""
-        if bitmap2 is None:
-            return bitmap1 or b""
-        length = max(len(bitmap1), len(bitmap2))
-        result = bytearray(length)
-        for i in range(length):
-            b1 = bitmap1[i] if i < len(bitmap1) else 0
-            b2 = bitmap2[i] if i < len(bitmap2) else 0
-            result[i] = b1 ^ b2
-        return bytes(result)
-    
+
+    def opand(self, *bitmaps: bytes) -> bytes:
+        return self._combine(bitmaps, lambda a, b: a & b)
+
+    def opor(self, *bitmaps: bytes) -> bytes:
+        return self._combine(bitmaps, lambda a, b: a | b)
+
+    def opxor(self, *bitmaps: bytes) -> bytes:
+        return self._combine(bitmaps, lambda a, b: a ^ b)
+
     def opnot(self, bitmap: bytes) -> bytes:
         if bitmap is None:
             return b""

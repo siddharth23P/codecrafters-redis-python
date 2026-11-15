@@ -82,6 +82,7 @@ class BitMapsCommands:
         """BITOP operation destkey key [key ...] -> length of the string value stored in destkey"""
         check_arity("bitop", len(args) >= 3)
         operation, destkey, *keys = args
+        operation = operation.upper()
         bitmaps = []
         for key in keys:
             entry = self._entry(key)
