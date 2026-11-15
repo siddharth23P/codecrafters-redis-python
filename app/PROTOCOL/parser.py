@@ -11,12 +11,8 @@ class ProtocolError(Exception):
     """Bytes are not valid RESP."""
 
 
-def parse(buf: bytes):
-    """Parse one RESP value from the start of buf. Return (value, bytes_used)."""
-    return _parse_at(buf, 0)
-
-
-def _parse_at(buf: bytes, pos: int):
+def parse(buf: bytes, pos: int = 0):
+    """Parse one RESP value starting at buf[pos]. Return (value, position just after it)."""
     end = buf.find(CRLF, pos)
     if end == -1:
         raise Incomplete
@@ -44,7 +40,7 @@ def _parse_at(buf: bytes, pos: int):
             return None, pos
         items = []
         for _ in range(size):
-            item, pos = _parse_at(buf, pos)
+            item, pos = parse(buf, pos)
             items.append(item)
         return items, pos
     raise ProtocolError(f"unknown RESP type {marker!r}")

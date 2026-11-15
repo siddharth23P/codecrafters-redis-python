@@ -2,22 +2,24 @@
 import selectors
 import socket
 
-from .blocking import Blocked
 from ..PROTOCOL.encoder import encode
-from ..PROTOCOL.resp_types import ToMaster, NoReply
 from ..PROTOCOL.parser import Incomplete, ProtocolError, parse
+from ..PROTOCOL.resp_types import NoReply, ToMaster
+from .blocking import Blocked
 
 
 class RedisServer:
-    def __init__(self, address, dispatcher, blocking, tickers=(), tick_interval=0.1):
+    def __init__(self, address, dispatcher, blocking, replication=None, tickers=(), tick_interval=0.1):
         self._address = address
+        self._replication = replication if replication is not None else {}  # shared with INFO / REPLCONF
+        self._replication.setdefault("master_repl_offset", 0)
         self._dispatcher = dispatcher        # request -> reply value
-        self._blocking = blocking            # clients parked by BLPOP
+        self._blocking = blocking            # parked clients (BLPOP, XREAD BLOCK, WAIT)
         self._tickers = tickers              # objects with tick(), run every loop pass
         self._tick_interval = tick_interval  # max seconds select() sleeps
         self._sel = selectors.DefaultSelector()
         self._buffers: dict[socket.socket, bytes] = {}  # unparsed bytes per connection
-        self._parked: set[socket.socket] = set()        # connections waiting in BLPOP
+        self._parked: set[socket.socket] = set()        # connections waiting on a blocking command
         self._silent: set[socket.socket] = set()        # master link: run commands, never reply
 
     def serve_forever(self):
@@ -30,18 +32,17 @@ class RedisServer:
             for ticker in self._tickers:
                 ticker.tick()
             self._resume(self._blocking.timed_out())
-            
-    def attach_master(self, conn, leftover=b"", replication=None):
-        self._replication = replication if replication is not None else {}
-        self._replication.setdefault("master_repl_offset", 0)
+
+    def attach_master(self, conn, leftover=b""):
+        """Register the replica's link to its master; commands on it run but get no reply."""
         conn.setblocking(False)
         self._buffers[conn] = leftover
         self._silent.add(conn)
         self._sel.register(conn, selectors.EVENT_READ, self._read)
         self._run(conn)
-    
+
     def _select_timeout(self):
-        """Sleep until the next tick, or sooner if a BLPOP timeout is due."""
+        """Sleep until the next tick, or sooner if a blocking timeout is due."""
         due = self._blocking.next_timeout()
         return self._tick_interval if due is None else min(self._tick_interval, due)
 
@@ -78,10 +79,9 @@ class RedisServer:
                     pass  # don't send anything back to the client
                 elif conn not in self._silent or isinstance(reply, ToMaster):
                     conn.sendall(encode(reply))
-                
                 if conn in self._silent:
-                    self._replication["master_repl_offset"] += len(encode(request))
-                self._resume(self._blocking.served())  # this command may have fed a BLPOP client
+                    self._replication["master_repl_offset"] += used  # bytes of this command, as sent by master
+                self._resume(self._blocking.served())  # this command may have woken a parked client
         except Incomplete:
             pass
         except ProtocolError as e:
@@ -104,6 +104,6 @@ class RedisServer:
         self._parked.discard(conn)
         del self._buffers[conn]
         self._sel.unregister(conn)
-        self._dispatcher.forget(conn)
         self._silent.discard(conn)
+        self._dispatcher.forget(conn)
         conn.close()

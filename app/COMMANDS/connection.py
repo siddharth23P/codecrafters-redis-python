@@ -1,8 +1,9 @@
-"""Connection commands: PING, ECHO."""
-from . import check_arity, register, registered_commands
+"""Connection and server commands: PING, ECHO, INFO, REPLCONF, PSYNC."""
 from ..PROTOCOL.encoder import encode
-from ..PROTOCOL.resp_types import SimpleString, BulkString, Raw, Array, ToMaster
+from ..PROTOCOL.resp_types import BulkString, Raw, SimpleString, ToMaster
+from . import check_arity, register, registered_commands
 
+# Snapshot sent to a new replica on full resync: an RDB file with no keys.
 EMPTY_RDB = bytes.fromhex(
     "524544495330303131fa0972656469732d76657205372e322e30"
     "fa0a72656469732d62697473c040fa056374696d65c26d08bc65"
@@ -10,62 +11,58 @@ EMPTY_RDB = bytes.fromhex(
     "fff06e3bfec0ff5aa2"
 )
 
+
 def create(ctx):
     return registered_commands(ConnectionCommands(ctx))
 
 
 class ConnectionCommands:
-    def __init__(self,ctx):
-        self.__version = ctx.version
-        self.__connected_clients = ctx.connected_clients
-        self.__used_memory = ctx.used_memory
-        self.__role = ctx.role
-        self.__replication = ctx.replication
-        
+    def __init__(self, ctx):
+        self._ctx = ctx
+
     @register
     def ping(self, args):
         """PING -> +PONG.  PING message -> message as a bulk string."""
-        check_arity(args, "ping", len(args) <= 1)
+        check_arity("ping", len(args) <= 1)
         return args[0] if args else SimpleString("PONG")
 
     @register
     def echo(self, args):
         """ECHO message -> message as a bulk string."""
-        check_arity(args, "echo", len(args) == 1)
+        check_arity("echo", len(args) == 1)
         return args[0]
 
     @register
     def info(self, args):
-        info_dump = {}
-        info_dump = {"role": self.__role}
+        """INFO [replication] -> "field:value" lines as one bulk string."""
+        ctx = self._ctx
+        fields = {"role": ctx.role}
         if b"replication" in (a.lower() for a in args):
-            info_dump.update(self.__replication)
+            fields.update(ctx.replication)
         else:
-            info_dump.update(version=self.__version,
-                             connected_clients=self.__connected_clients,
-                             used_memory=self.__used_memory)
-        text = "\r\n".join(f"{k}:{v}" for k, v in info_dump.items())
-        return BulkString(text.encode())
-    
+            fields.update(version=ctx.version,
+                          connected_clients=ctx.connected_clients,
+                          used_memory=ctx.used_memory)
+        return BulkString("\r\n".join(f"{k}:{v}" for k, v in fields.items()).encode())
+
     @register
     def replconf(self, args):
-        check_arity(args, "replconf", len(args) >= 1)
+        """REPLCONF GETACK * -> REPLCONF ACK <offset> (sent even on the master link); else +OK."""
+        check_arity("replconf", len(args) >= 1)
         if args[0].lower() == b"getack":
-            offset = self.__replication.get("master_repl_offset", 0)
+            offset = self._ctx.replication.get("master_repl_offset", 0)
             return ToMaster([b"REPLCONF", b"ACK", str(offset).encode()])
         return SimpleString("OK")
-    
-    @register
-    def psync(self,args):
-        check_arity(args, "psync", len(args) == 2)
-        repl_id = self.__replication["master_replid"]
-        offset = self.__replication["master_repl_offset"]
-        return self.send_file(header=SimpleString(f"FULLRESYNC {repl_id} {offset}"))
 
-    @staticmethod
-    def send_file(RDB_FILE=EMPTY_RDB, header=None):
-        """header (e.g. +FULLRESYNC) then the RDB as $len\\r\\n<bytes> with no trailing CRLF."""
-        header = encode(header)
-        rdb = b"$%d\r\n" % len(RDB_FILE) + RDB_FILE
-        return Raw(header + rdb)
-        
+    @register
+    def psync(self, args):
+        """PSYNC replid offset -> +FULLRESYNC <replid> <offset>, then the RDB snapshot."""
+        check_arity("psync", len(args) == 2)
+        repl = self._ctx.replication
+        header = SimpleString(f"FULLRESYNC {repl['master_replid']} {repl['master_repl_offset']}")
+        return Raw(encode(header) + _rdb_payload(EMPTY_RDB))
+
+
+def _rdb_payload(rdb):
+    """RDB file framed as $<len>\\r\\n<bytes>: like a bulk string, but with no trailing CRLF."""
+    return b"$%d\r\n" % len(rdb) + rdb

@@ -1,35 +1,68 @@
+"""Append-only file: log write commands, and replay them at startup.
+
+Layout (Redis 7 multi-part AOF):
+    <dir>/<appenddirname>/<appendfilename>.1.incr.aof
+    <dir>/<appenddirname>/<appendfilename>.manifest
+"""
 import os
-from ..PROTOCOL.parser import Incomplete, _parse_at
+
+from ..PROTOCOL.encoder import encode
+from ..PROTOCOL.parser import Incomplete, parse
 from ..PROTOCOL.resp_types import CommandError
 
 
+def enabled(config):
+    return config.get("appendonly", "no").lower() == "yes"
+
+
+def _aof_dir(config):
+    return os.path.join(config.get("dir", "."), config.get("appenddirname", "appendonlydir"))
+
+
+def _base(config):
+    return config.get("appendfilename", "appendonly.aof")
+
+
+def incr_path(config):
+    return os.path.join(_aof_dir(config), f"{_base(config)}.1.incr.aof")
+
+
+def manifest_path(config):
+    return os.path.join(_aof_dir(config), f"{_base(config)}.manifest")
+
+
 def init(config):
-    """Create the AOF directory, incremental file, and manifest when appendonly is yes.
+    """Create the AOF directory, incremental file and manifest when appendonly is yes.
 
-    Layout (Redis 7 multi-part AOF):
-        <dir>/<appenddirname>/<appendfilename>.1.incr.aof
-        <dir>/<appenddirname>/<appendfilename>.manifest
-    Existing files are left untouched.
+    Existing files are left untouched. Returns the incremental file's path, or None if AOF is off.
     """
-    if config.get("appendonly", "no").lower() != "yes":
+    if not enabled(config):
         return None
+    os.makedirs(_aof_dir(config), exist_ok=True)
+    path = incr_path(config)
+    if not os.path.exists(path):
+        open(path, "wb").close()
+    if not os.path.exists(manifest_path(config)):
+        with open(manifest_path(config), "w") as f:
+            f.write(f"file {os.path.basename(path)} seq 1 type i\n")
+    return path
 
-    aof_dir = os.path.join(config["dir"], config["appenddirname"])
-    os.makedirs(aof_dir, exist_ok=True)
 
-    base = config["appendfilename"]
-    incr_name = f"{base}.1.incr.aof"
-    incr_path = os.path.join(aof_dir, incr_name)
-    manifest_path = os.path.join(aof_dir, f"{base}.manifest")
+class Appender:
+    """Appends each write command to the incremental AOF file. Does nothing when appendonly is no."""
 
-    if not os.path.exists(incr_path):
-        open(incr_path, "wb").close()
+    def __init__(self, config):
+        self._path = incr_path(config) if enabled(config) else None
+        self._fsync_always = config.get("appendfsync", "everysec").lower() == "always"
 
-    if not os.path.exists(manifest_path):
-        with open(manifest_path, "w") as f:
-            f.write(f"file {incr_name} seq 1 type i\n")
-
-    return incr_path
+    def append(self, request):
+        if self._path is None:
+            return
+        with open(self._path, "ab") as f:
+            f.write(encode(request))
+            f.flush()
+            if self._fsync_always:
+                os.fsync(f.fileno())
 
 
 def replay(config, registry):
@@ -38,17 +71,11 @@ def replay(config, registry):
     Commands go straight to the registry, so they are not re-appended or propagated.
     A truncated tail (crash mid-write) is ignored. Returns the number of commands replayed.
     """
-    if config.get("appendonly", "no").lower() != "yes":
+    if not enabled(config) or not os.path.exists(manifest_path(config)):
         return 0
-
-    aof_dir = os.path.join(config["dir"], config["appenddirname"])
-    manifest_path = os.path.join(aof_dir, f"{config['appendfilename']}.manifest")
-    if not os.path.exists(manifest_path):
-        return 0
-
     count = 0
-    for name in _incr_files(manifest_path):
-        path = os.path.join(aof_dir, name)
+    for name in _incr_files(manifest_path(config)):
+        path = os.path.join(_aof_dir(config), name)
         if not os.path.exists(path):
             continue
         with open(path, "rb") as f:
@@ -56,7 +83,7 @@ def replay(config, registry):
         pos = 0
         while pos < len(buf):
             try:
-                request, pos = _parse_at(buf, pos)
+                request, pos = parse(buf, pos)
             except Incomplete:
                 break  # partial last command
             if not isinstance(request, list) or not request:
@@ -72,10 +99,10 @@ def replay(config, registry):
     return count
 
 
-def _incr_files(manifest_path):
+def _incr_files(path):
     """Incremental file names from the manifest, ordered by seq."""
     entries = []
-    with open(manifest_path) as f:
+    with open(path) as f:
         for line in f:
             parts = line.split()
             fields = dict(zip(parts[::2], parts[1::2]))

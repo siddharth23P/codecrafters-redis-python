@@ -1,21 +1,23 @@
-"""Bookkeeping for clients parked by BLPOP. Nothing here sleeps or touches sockets."""
+"""Bookkeeping for clients parked by BLPOP, XREAD BLOCK and WAIT. Nothing here sleeps or touches sockets."""
 import time
 from collections import deque
 from dataclasses import dataclass
+from typing import Any, Callable
 
 from ..PROTOCOL.resp_types import Array
 
 
 @dataclass
 class Blocked:
+    """Returned by a command that must wait. The server parks the client until serve() gives a reply."""
     keys: list
     timeout: float | None  # seconds; None = wait forever
-    serve: callable
-    on_timeout: callable | None = None  # called if the client times out before being served
+    serve: Callable[[bytes], Any]  # key that changed -> reply, or None to keep waiting
+    on_timeout: Callable[[], Any] | None = None  # reply on timeout; default is the null array
+
 
 class BlockingRegistry:
-    def __init__(self, store):
-        self._store = store
+    def __init__(self):
         self._queues: dict[bytes, deque] = {}  # key -> clients waiting on it, oldest first
         self._waiting: dict = {}               # client -> (keys, deadline or None)
         self._ready: set[bytes] = set()        # keys pushed to since the last served()
@@ -37,9 +39,8 @@ class BlockingRegistry:
                 if not queue:
                     del self._queues[key]
 
-
     def notify(self, key: bytes):
-        """Called by RPUSH/LPUSH after adding to key."""
+        """Mark key as changed (e.g. after a push), so served() retries clients waiting on it."""
         if key in self._queues:
             self._ready.add(key)
 

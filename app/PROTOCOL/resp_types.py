@@ -34,7 +34,8 @@ class BulkString:
 class Array:
     """Reply sent as `*count` + each item encoded. None is sent as the null array `*-1`."""
     items: list | tuple | None
-    
+
+
 @dataclass(frozen=True)
 class Raw:
     """Bytes sent as-is, no RESP framing (e.g. FULLRESYNC + RDB payload)."""
@@ -45,6 +46,7 @@ class Raw:
 class ToMaster:
     """Reply that must reach the master even on the silent replication link (e.g. REPLCONF ACK)."""
     value: object
+
 
 @dataclass(frozen=True)
 class NoReply:

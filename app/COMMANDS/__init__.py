@@ -1,10 +1,11 @@
+"""Command modules. load(ctx) imports each one and fills ctx.registry; helpers below are shared."""
 import importlib
 import pkgutil
 
 from ..PROTOCOL.resp_types import CommandError
 
 
-def check_arity(args, name, ok):
+def check_arity(name, ok):
     """Raise the standard error when `ok` (an argument-count check) is False."""
     if not ok:
         raise CommandError(f"wrong number of arguments for '{name}' command")
@@ -14,7 +15,7 @@ def to_int(arg):
     try:
         return int(arg)
     except ValueError:
-        raise CommandError("value is not an integer or out of range")
+        raise CommandError("value is not an integer or out of range") from None
 
 
 def register(name_or_fn=None):

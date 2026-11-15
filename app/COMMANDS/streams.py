@@ -1,9 +1,18 @@
-"""Stream commands."""
-from . import check_arity, register, registered_commands, to_int
-from ..PROTOCOL.resp_types import Array, BulkString, CommandError, Integer, SimpleString, WrongTypeError
-from ..SERVER.blocking import Blocked
-from collections import deque, OrderedDict
+"""Stream commands: XADD, XRANGE, XREAD.
+
+A stream is stored as store[key] = [OrderedDict(id -> {field: value}), None], ids ascending.
+An id is b"<ms>-<seq>"; ids compare as (ms, seq) tuples.
+"""
 import time
+from collections import OrderedDict
+
+from ..PROTOCOL.resp_types import Array, BulkString, CommandError, WrongTypeError
+from ..SERVER.blocking import Blocked
+from . import check_arity, register, registered_commands, to_int
+
+MIN_ID = (0, 0)
+MAX_ID = (float("inf"), float("inf"))
+
 
 def create(ctx):
     return registered_commands(StreamCommands(ctx.store, ctx.blocking))
@@ -12,151 +21,124 @@ def create(ctx):
 class StreamCommands:
     def __init__(self, store, blocking):
         self._store = store
-        self._blocking = blocking
-        
-    @register
-    def type(self,args):
-        check_arity(args, "llen", len(args) == 1)
-        key = args[0]
-        entry = self._store.get(key)
-        if entry is None:
-            return SimpleString("none")
-        if isinstance(entry[0], deque):
-            return SimpleString("list")
-        if isinstance(entry[0], OrderedDict):
-            return SimpleString("stream")
-        return SimpleString("string")
-    
-    @register
-    def xadd(self,args):
-        return self._push(args, "xadd")
-    
-    @register
-    def xread(self,args):
-        sub_cmd = args[0]
-        if sub_cmd.lower() == b"block":
-            timeout = to_int(args[1]) / 1000
-            if timeout < 0:
-                raise CommandError("timeout is negative")
-            key, id = args[3], args[4]
-            if id == b"$":
-                entry = self._store.get(key)
-                id = next(reversed(entry[0]), b"0-0") if entry else b"0-0"
-            ms, seq = self._range_id(id, 0)
-            start = b"%d-%d" % (ms, seq + 1) 
-            
-            def serve(k):
-                entries = self._get(key, start, b"+")
-                return Array([Array([key, Array(entries)])]) if entries else None
-            
-            reply = serve(key)
-            return reply if reply is not None else Blocked([key],timeout or None,serve)
-            
-            
-        if sub_cmd.lower() == b"streams":
-            return self._get_streams(args[1:])
-        
-    
-    @register
-    def xrange(self,args):
-        key,start,stop = self._get_read_args(args, "xrange", 3)
-        return Array(self._get(key,start,stop))
-    
-    def _get_streams(self,args):
-        check_arity(args, "xread", len(args) >= 2 and len(args)%2 == 0)
-        half = len(args) // 2
-        keys, ids = args[:half], args[half:]
-        reads = []
-        for key, id in zip(keys,ids):
-            reads.append([key,self._get(key,id,b"+")])
-        return Array(reads)
-    
-    def _get_read_args(self, args, name, args_count):
-        check_arity(args, name, len(args) == args_count)
-        if args_count == 3:
-            key, start, stop = args
-        if args_count == 2:
-            key, start = args
-            stop = b"+"
-        return key,start,stop
-    
-    def _get(self, key, start, stop):
-        entry = self._store.get(key)
-        if entry is None:
-            return Array([])
+        self._blocking = blocking  # woken on XADD, used by XREAD BLOCK
 
-        lo = self._range_id(start, 0)
-        hi = self._range_id(stop, float("inf"))
+    # --- commands ---
 
-        result = []
-        for id, fields in entry[0].items():
-            current = tuple(map(int, id.split(b"-")))
-            if current > hi:
-                break                      # ordered, so nothing later matches
-            if current >= lo:
-                flat = [x for pair in fields.items() for x in pair]   # {a: 1, b: 2} becomes [a, 1, b, 2]
-                result.append(Array([id, Array(flat)]))
-        return result
-
-    @staticmethod
-    def _range_id(raw, default_seq):
-        """b"5-3" gives (5, 3); b"5" gives (5, default_seq); "-" and "+" are the min and max."""
-        if raw == b"-":
-            return (0, 0)
-        if raw == b"+":
-            return (float("inf"), float("inf"))
-        if b"-" in raw:
-            ms, seq = raw.split(b"-")
-            return int(ms), int(seq)
-        return int(raw), default_seq
-        
-    def _push(self,args,name):
-        check_arity(args, name, len(args) >= 4 and len(args)%2 == 0)
-        key, id, *kv_pairs = args
-        if key not in self._store:
-            kv_store = OrderedDict()
-            self._store[key] = [kv_store, None]
-        kv_store = self._store[key][0]
-        
-        if id == b"*":
-            ms = time.time_ns() // 1_000_000
-            seq_part = 0
-        
-        else:
-            ms_part, seq_part = id.split(b"-")
-            ms = int(ms_part)
-        
-        last_id = next(reversed(kv_store), None)
-        last_ms, last_seq = map(int, last_id.split(b"-")) if last_id is not None else (0, 0)
-        
-        if seq_part == b"*":
-            seq = last_seq + 1 if ms == last_ms else 0
-        else:
-            seq = int(seq_part)
-            
-        if (ms, seq) == (0, 0):
+    @register
+    def xadd(self, args):
+        """XADD key id field value [field value ...] -> the new entry's id. id may be * or <ms>-*."""
+        check_arity("xadd", len(args) >= 4 and len(args) % 2 == 0)
+        key, raw_id, *pairs = args
+        entries = self._stream(key)
+        last = _parse_id(next(reversed(entries))) if entries else MIN_ID
+        new = _next_id(raw_id, last)
+        if new == MIN_ID:
             raise CommandError("The ID specified in XADD must be greater than 0-0")
-        
-        
-        if (ms, seq) <= (last_ms, last_seq):
+        if new <= last:
             raise CommandError("The ID specified in XADD is equal or smaller than the target stream top item")
 
-        id = b"%d-%d" % (ms, seq)
-            
-        if id not in kv_store:
-            kv_store[id] = dict()
-            
-        for index in range(len(kv_pairs)//2):
-            key_index , value_index = index * 2 , (index * 2) + 1
-            k = kv_pairs[key_index]
-            v = kv_pairs[value_index]
-            kv_store[id][k] = v
-        
-        self._blocking.notify(key)
-        return BulkString(id)
-            
-            
-        
-            
-            
-            
+        if entries is None:
+            entries = OrderedDict()
+            self._store[key] = [entries, None]
+        entry_id = b"%d-%d" % new
+        entries[entry_id] = dict(zip(pairs[::2], pairs[1::2]))
+        self._blocking.notify(key)  # wake XREAD BLOCK clients waiting on this key
+        return BulkString(entry_id)
+
+    @register
+    def xrange(self, args):
+        """XRANGE key start end -> entries with start <= id <= end; - and + are the min and max."""
+        check_arity("xrange", len(args) == 3)
+        key, start, end = args
+        return Array(self._range(key, _parse_id(start, 0), _parse_id(end, float("inf"))))
+
+    @register
+    def xread(self, args):
+        """XREAD [BLOCK ms] STREAMS key [key ...] id [id ...] -> [[key, entries], ...] with id > given id.
+
+        Streams with no new entries are left out; null if none have any. "$" means the stream's last id.
+        """
+        timeout_ms = None
+        if args and args[0].lower() == b"block":
+            check_arity("xread", len(args) >= 2)
+            timeout_ms = to_int(args[1])
+            if timeout_ms < 0:
+                raise CommandError("timeout is negative")
+            args = args[2:]
+        if not args or args[0].lower() != b"streams":
+            raise CommandError("syntax error")
+        streams = args[1:]
+        check_arity("xread", streams and len(streams) % 2 == 0)
+
+        half = len(streams) // 2
+        keys = streams[:half]
+        starts = [self._after(key, raw) for key, raw in zip(keys, streams[half:])]  # resolve $ now
+
+        def read(_key=None):
+            found = []
+            for key, start in zip(keys, starts):
+                if entries := self._range(key, start, MAX_ID):
+                    found.append(Array([key, Array(entries)]))
+            return Array(found) if found else None
+
+        reply = read()
+        if reply is not None or timeout_ms is None:
+            return reply if reply is not None else Array(None)
+        return Blocked(keys, timeout_ms / 1000 or None, read)  # BLOCK 0 = wait forever
+
+    # --- shared helpers ---
+
+    def _stream(self, key):
+        """The OrderedDict at key, or None if missing. Raise WrongTypeError for other types."""
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        if not isinstance(entry[0], OrderedDict):
+            raise WrongTypeError()
+        return entry[0]
+
+    def _range(self, key, lo, hi):
+        """[[id, [field, value, ...]], ...] for entries with lo <= id <= hi."""
+        result = []
+        for entry_id, fields in (self._stream(key) or {}).items():
+            current = _parse_id(entry_id)
+            if current > hi:
+                break  # ordered, so nothing later matches
+            if current >= lo:
+                flat = [x for pair in fields.items() for x in pair]  # {a: 1, b: 2} becomes [a, 1, b, 2]
+                result.append(Array([entry_id, Array(flat)]))
+        return result
+
+    def _after(self, key, raw):
+        """Smallest id strictly greater than raw. "$" means the stream's current last id."""
+        if raw == b"$":
+            entries = self._stream(key)
+            raw = next(reversed(entries)) if entries else b"0-0"
+        ms, seq = _parse_id(raw, 0)
+        return ms, seq + 1
+
+
+def _parse_id(raw, default_seq=0):
+    """b"5-3" gives (5, 3); b"5" gives (5, default_seq); b"-" and b"+" are the min and max."""
+    if raw == b"-":
+        return MIN_ID
+    if raw == b"+":
+        return MAX_ID
+    ms, sep, seq = raw.partition(b"-")
+    try:
+        return int(ms), int(seq) if sep else default_seq
+    except ValueError:
+        raise CommandError("Invalid stream ID specified as stream command argument") from None
+
+
+def _next_id(raw, last):
+    """The (ms, seq) XADD should use for raw, given the stream's last id."""
+    if raw == b"*":
+        ms = max(time.time_ns() // 1_000_000, last[0])
+        return ms, last[1] + 1 if ms == last[0] else 0
+    ms_part, sep, seq_part = raw.partition(b"-")
+    if sep and seq_part == b"*":
+        ms = _parse_id(ms_part)[0]
+        return ms, last[1] + 1 if ms == last[0] else 0
+    return _parse_id(raw)

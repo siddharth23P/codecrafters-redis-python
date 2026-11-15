@@ -4,9 +4,15 @@ A list is stored as store[key] = [deque, expires_at].
 """
 from collections import deque
 
-from . import check_arity, register, registered_commands, to_int
-from ..PROTOCOL.resp_types import Array, BulkString, CommandError, Integer, WrongTypeError
+from ..PROTOCOL.resp_types import (
+    Array,
+    BulkString,
+    CommandError,
+    Integer,
+    WrongTypeError,
+)
 from ..SERVER.blocking import Blocked
+from . import check_arity, register, registered_commands, to_int
 
 
 def create(ctx):
@@ -33,14 +39,14 @@ class ListCommands:
     @register
     def llen(self, args):
         """LLEN key -> length of the list, 0 if missing"""
-        check_arity(args, "llen", len(args) == 1)
+        check_arity("llen", len(args) == 1)
         items = self._list(args[0])
         return Integer(len(items) if items is not None else 0)
 
     @register
     def lrange(self, args):
         """LRANGE key start stop -> elements from start to stop, both inclusive; -1 = last"""
-        check_arity(args, "lrange", len(args) == 3)
+        check_arity("lrange", len(args) == 3)
         start, stop = to_int(args[1]), to_int(args[2])
         items = self._list(args[0])
         if items is None:
@@ -59,7 +65,7 @@ class ListCommands:
     @register
     def lpop(self, args):
         """LPOP key [count] -> first element, or an array of up to count elements"""
-        check_arity(args, "lpop", len(args) in (1, 2))
+        check_arity("lpop", len(args) in (1, 2))
         count = to_int(args[1]) if len(args) == 2 else None
         items = self._list(args[0])
         if items is None:
@@ -71,12 +77,12 @@ class ListCommands:
     @register
     def blpop(self, args):
         """BLPOP key [key ...] timeout -> [key, element], or null array on timeout"""
-        check_arity(args, "blpop", len(args) >= 2)
+        check_arity("blpop", len(args) >= 2)
         *keys, timeout = args
         try:
             timeout = float(timeout)
         except ValueError:
-            raise CommandError("timeout is not a float or out of range")
+            raise CommandError("timeout is not a float or out of range") from None
         if timeout < 0:
             raise CommandError("timeout is negative")
 
@@ -98,7 +104,7 @@ class ListCommands:
         return entry[0]
 
     def _push(self, args, name, add):
-        check_arity(args, name, len(args) >= 2)
+        check_arity(name, len(args) >= 2)
         key, *elements = args
         items = self._list(key)
         if items is None:
