@@ -66,7 +66,7 @@ class SortedSetsCommands:
         start, stop = to_int(start), to_int(stop)
         result = entries.range(start, stop)
         if withscores:
-            return [BulkString(member) for member, score in result for BulkString(str(score).encode())]
+            return [BulkString(member) for member, score in result] + [BulkString(str(score).encode()) for member, score in result]
         else:
             return [BulkString(member) for member, score in result]
         
