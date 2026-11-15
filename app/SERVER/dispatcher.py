@@ -38,6 +38,7 @@ class CommandDispatcher:
             "unwatch": self._unwatch_command,
             "wait": self._wait,
             "subscribe": self._subscribe,
+            "unsubscribe": self._unsubscribe,
             "publish": self._publish,
         }
 
@@ -97,6 +98,10 @@ class CommandDispatcher:
         channel, message = args
         self._pubsub.publish(channel, message)
         return Integer(len(self._pubsub._subscribers.get(channel, set())))
+    
+    def _unsubscribe(self, conn, channels):
+        replies = self._pubsub.unsubscribe(conn, channels)
+        return Raw(b"".join(encode(r) for r in replies))
 
     def _exec(self, conn, _args):
         queue = self._transactions.pop(conn, None)

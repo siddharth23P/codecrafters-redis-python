@@ -26,6 +26,18 @@ class PUBSUB:
     def publish(self, channel, message):
         for conn in self._subscribers.get(channel, set()):
             conn.send(encode([b"message", channel, message]))
+            
+    def unsubscribe(self, conn, channels):
+        mine = self._channels.get(conn, set())
+        replies = []
+        for channel in channels:
+            if channel in mine:
+                mine.remove(channel)
+                self._subscribers[channel].discard(conn)
+                if not self._subscribers[channel]:
+                    del self._subscribers[channel]
+            replies.append([b"unsubscribe", channel, len(mine)])
+        return replies
     
     def forget(self, conn):
         """Drop all state for a closed connection."""
