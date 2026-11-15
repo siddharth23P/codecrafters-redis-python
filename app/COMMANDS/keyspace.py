@@ -3,6 +3,7 @@ from collections import OrderedDict, deque
 
 from ..PROTOCOL.resp_types import CommandError, SimpleString
 from . import check_arity, register, registered_commands
+from ..DATASTRUCTURES.sortedsets import SortedSet
 
 
 def create(ctx):
@@ -24,6 +25,8 @@ class KeyspaceCommands:
             return SimpleString("list")
         if isinstance(entry[0], OrderedDict):
             return SimpleString("stream")
+        if isinstance(entry[0], SortedSet):
+            return SimpleString("zset")
         return SimpleString("string")
 
     @register

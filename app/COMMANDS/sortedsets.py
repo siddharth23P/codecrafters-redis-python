@@ -19,13 +19,20 @@ class SortedSetsCommands:
         self._store = store
         self._blocking = blocking
     
+    def _zget(self, key):
+        """Return the SortedSet at key, or None. Store entries are [value, expires_at]."""
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        if not isinstance(entry[0], SortedSet):
+            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        return entry[0]
+
     def _zinit(self, key):
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             entries = SortedSet()
-            self._store[key] = entries
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+            self._store[key] = [entries, None]
         return entries
     
     @register
@@ -45,11 +52,9 @@ class SortedSetsCommands:
     def zrank(self, args):
         check_arity("zrank", len(args) == 2)
         key, member = args
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             return None
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
         rank = entries.rank(member)
         return rank
     
@@ -58,11 +63,9 @@ class SortedSetsCommands:
         check_arity("zrange", len(args) in (3, 4))
         key, start, stop = args[:3]
         withscores = len(args) == 4 and args[3].lower() == b"withscores"
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             return []
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
         start, stop = to_int(start), to_int(stop)
         result = entries.range(start, stop)
         if withscores:
@@ -74,22 +77,18 @@ class SortedSetsCommands:
     def zcard(self, args):
         check_arity("zcard", len(args) == 1)
         key = args[0]
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             return 0
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
         return len(entries)
     
     @register
     def zscore(self, args):
         check_arity("zscore", len(args) == 2)
         key, member = args
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             return None
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
         score = entries.score(member)
         if score is None:
             return None
@@ -99,11 +98,9 @@ class SortedSetsCommands:
     def zrem(self, args):
         check_arity("zrem", len(args) >= 2)
         key, *members = args
-        entries = self._store.get(key)
+        entries = self._zget(key)
         if entries is None:
             return 0
-        elif not isinstance(entries, SortedSet):
-            raise WrongTypeError("WRONGTYPE Operation against a key holding the wrong kind of value")
         removed = 0
         for member in members:
             if member in entries:
