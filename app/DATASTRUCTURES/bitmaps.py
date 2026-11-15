@@ -29,3 +29,8 @@ class BitMaps:
             return 0
 
         return (bitmap[offset_byte] >> (7 - offset_bit)) & 1
+    
+    def count(self, bitmap: bytes) -> int:
+        if bitmap is None:
+            return 0
+        return sum(bin(byte).count("1") for byte in bitmap)
