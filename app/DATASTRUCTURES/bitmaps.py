@@ -34,3 +34,40 @@ class BitMaps:
         if bitmap is None:
             return 0
         return sum(bin(byte).count("1") for byte in bitmap)
+    
+    def opand(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
+        if bitmap1 is None or bitmap2 is None:
+            return b""
+        length = min(len(bitmap1), len(bitmap2))
+        return bytes(b1 & b2 for b1, b2 in zip(bitmap1[:length], bitmap2[:length]))
+    
+    def opor(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
+        if bitmap1 is None:
+            return bitmap2 or b""
+        if bitmap2 is None:
+            return bitmap1 or b""
+        length = max(len(bitmap1), len(bitmap2))
+        result = bytearray(length)
+        for i in range(length):
+            b1 = bitmap1[i] if i < len(bitmap1) else 0
+            b2 = bitmap2[i] if i < len(bitmap2) else 0
+            result[i] = b1 | b2
+        return bytes(result)
+    
+    def opxor(self, bitmap1: bytes, bitmap2: bytes) -> bytes:
+        if bitmap1 is None:
+            return bitmap2 or b""
+        if bitmap2 is None:
+            return bitmap1 or b""
+        length = max(len(bitmap1), len(bitmap2))
+        result = bytearray(length)
+        for i in range(length):
+            b1 = bitmap1[i] if i < len(bitmap1) else 0
+            b2 = bitmap2[i] if i < len(bitmap2) else 0
+            result[i] = b1 ^ b2
+        return bytes(result)
+    
+    def opnot(self, bitmap: bytes) -> bytes:
+        if bitmap is None:
+            return b""
+        return bytes(~b & 0xFF for b in bitmap)

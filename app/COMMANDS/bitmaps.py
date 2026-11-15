@@ -77,6 +77,35 @@ class BitMapsCommands:
         
         return Integer(self._bitmaps.count(bitmap[start:end + 1]))
     
+    @register
+    def bitop(self, args):
+        """BITOP operation destkey key [key ...] -> length of the string value stored in destkey"""
+        check_arity("bitop", len(args) >= 3)
+        operation, destkey, *keys = args
+        bitmaps = []
+        for key in keys:
+            entry = self._entry(key)
+            if entry is None:
+                bitmaps.append(b"")
+            else:
+                bitmaps.append(entry[0])
+        
+        if operation == b"AND":
+            result = self._bitmaps.opand(*bitmaps)
+        elif operation == b"OR":
+            result = self._bitmaps.opor(*bitmaps)
+        elif operation == b"XOR":
+            result = self._bitmaps.opxor(*bitmaps)
+        elif operation == b"NOT":
+            if len(bitmaps) != 1:
+                raise CommandError("ERR BITOP NOT must be called with a single source key")
+            result = self._bitmaps.opnot(bitmaps[0])
+        else:
+            raise CommandError(f"ERR unknown BITOP operation '{operation.decode()}'")
+        
+        self._store[destkey] = (result, None)
+        return Integer(len(result))
+    
     def _entry(self, key):
         """(value, expires_at) for a live string key, else None. Expired keys are deleted."""
         entry = self._store.get(key)
