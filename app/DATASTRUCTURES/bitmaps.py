@@ -15,7 +15,7 @@ class BitMaps:
         if value not in (0, 1):
             raise ValueError("Value must be 0 or 1")
         
-        oldbit = (bitmap[offset_byte] >> (7 - offset_bit)) & 1
+        oldbit = self.getbit(key, offset)
         
         if value:
             bitmap[offset_byte] |= (1 << (7 - offset_bit))
@@ -23,5 +23,17 @@ class BitMaps:
             bitmap[offset_byte] &= ~(1 << (7 - offset_bit))
             
         return oldbit
+    
+    def getbit(self, key: bytes, offset: int) -> int:
+        bitmap = self._bitmaps.get(key)
+        if bitmap is None:
+            return 0
+        
+        offset_byte, offset_bit = divmod(offset, 8)
+        
+        if offset_byte >= len(bitmap):
+            return 0
+        
+        return (bitmap[offset_byte] >> (7 - offset_bit)) & 1
             
         

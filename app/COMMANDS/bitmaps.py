@@ -30,3 +30,22 @@ class BitMapsCommands:
         
         oldbit = bitmaps.setbit(key, offset, value)
         return Integer(oldbit)
+    
+    @register
+    def getbit(self, args):
+        check_arity("getbit", len(args) == 2)
+        key, offset = args
+        offset = to_int(offset)
+        if offset < 0:
+            raise CommandError("bit offset is not an integer or out of range")
+
+        entry = self._store.get(key)
+        if entry is None:
+            return Integer(0)
+        
+        bitmaps = entry[0]
+        if not isinstance(bitmaps, BitMaps):
+            raise WrongTypeError()
+        
+        bit = bitmaps.getbit(key, offset)
+        return Integer(bit)
