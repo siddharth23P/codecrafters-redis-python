@@ -1,4 +1,4 @@
-from ..PROTOCOL.resp_types import BulkString, WrongTypeError, CommandError, Integer
+from ..PROTOCOL.resp_types import Array, BulkString, WrongTypeError, CommandError, Integer
 from . import check_arity, register, registered_commands, to_int
 from ..DATASTRUCTURES.sortedsets import SortedSet
 
@@ -54,15 +54,14 @@ class GeoSpatialCommands:
         check_arity("geopos", len(args) >= 2)
         key, *members = args
         entries = self._get_sorted_set(key)
-        if entries is None:
-            return [None] * len(members)
         positions = []
         for member in members:
-            score = entries.score(member)
+            score = entries.score(member) if entries is not None else None
             if score is None:
-                positions.append(None)
+                positions.append(Array(None))
             else:
-                positions.append(self._decoding_location_score(score))
+                latitude, longitude = self._decoding_location_score(score)
+                positions.append([str(longitude), str(latitude)])
         return positions
     
     # --- helper methods for geospatial calculations ---
@@ -141,6 +140,8 @@ class GeoSpatialCommands:
     
     @staticmethod
     def _decoding_location_score(score):
+        # SortedSet stores scores as floats; bit ops need an int.
+        score = int(score)
         y = score >> 1
         x = score
         grid_latitude_number = GeoSpatialCommands._compact_int64_to_int32(x)
