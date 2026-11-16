@@ -75,7 +75,7 @@ class SortedSet:
 
     def add(self, member, score):
         """Insert or update `member`. Return True if the member is new."""
-        score = float(score)
+        # score = float(score)
         old = self.scores.get(member)
         if old is not None:
             if old == score:
