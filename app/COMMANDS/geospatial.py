@@ -1,6 +1,7 @@
-from ..PROTOCOL.resp_types import Array, BulkString, WrongTypeError, CommandError, Integer
-from . import check_arity, register, registered_commands, to_int
+from math import radians, sin, cos, sqrt, atan2
+from . import check_arity, register, registered_commands
 from ..DATASTRUCTURES.sortedsets import SortedSet
+from ..PROTOCOL.resp_types import Array, WrongTypeError, CommandError
 
 MIN_LATITUDE = -85.05112878
 MAX_LATITUDE = 85.05112878
@@ -136,7 +137,6 @@ class GeoSpatialCommands:
     @staticmethod
     def _haversine_distance(lat1, lon1, lat2, lon2):
         """Calculate the great-circle distance between two points on the Earth using the Haversine formula."""
-        from math import radians, sin, cos, sqrt, atan2
 
         R = 6372797.560856  # Radius of the Earth in meters
         phi1 = radians(lat1)
