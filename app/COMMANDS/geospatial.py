@@ -64,7 +64,48 @@ class GeoSpatialCommands:
                 positions.append([str(longitude), str(latitude)])
         return positions
     
+    @register
+    def geodist(self, args):
+        check_arity("geodist", len(args) in (3, 4))
+        key, member1, member2 = args[:3]
+        unit = args[3].lower() if len(args) == 4 else b"m"
+        entries = self._get_sorted_set(key)
+        if entries is None:
+            return None
+        score1 = entries.score(member1)
+        score2 = entries.score(member2)
+        if score1 is None or score2 is None:
+            return None
+        lat1, lon1 = self._decoding_location_score(score1)
+        lat2, lon2 = self._decoding_location_score(score2)
+        distance_meters = self._haversine_distance(lat1, lon1, lat2, lon2)
+        if unit == b"m":
+            return distance_meters
+        elif unit == b"km":
+            return distance_meters / 1000
+        elif unit == b"mi":
+            return distance_meters / 1609.344
+        elif unit == b"ft":
+            return distance_meters * 3.28084
+        else:
+            raise CommandError(f"ERR unsupported unit '{unit.decode()}'")
+        
     # --- helper methods for geospatial calculations ---
+    @staticmethod
+    def _haversine_distance(lat1, lon1, lat2, lon2):
+        """Calculate the great-circle distance between two points on the Earth using the Haversine formula."""
+        from math import radians, sin, cos, sqrt, atan2
+
+        R = 6372797.560856  # Radius of the Earth in meters
+        phi1 = radians(lat1)
+        phi2 = radians(lat2)
+        delta_phi = radians(lat2 - lat1)
+        delta_lambda = radians(lon2 - lon1)
+
+        a = sin(delta_phi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(delta_lambda / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return R * c
     @staticmethod
     def _validate_coordinates(longitude, latitude):
         if not (-180 <= longitude <= 180) or not (-85.05112878 <= latitude <= 85.05112878):
