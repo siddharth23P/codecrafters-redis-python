@@ -85,5 +85,5 @@ class GeoSpatialCommands:
         normalized_latitude = int(2**26 * (latitude - MIN_LATITUDE) / LATITUDE_RANGE)
         normalized_longitude = int(2**26 * (longitude - MIN_LONGITUDE) / LONGITUDE_RANGE)
 
-        score = GeoSpatialCommands._interleave(normalized_longitude, normalized_latitude)
+        score = GeoSpatialCommands._interleave(normalized_latitude, normalized_longitude)
         return score
