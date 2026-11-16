@@ -80,13 +80,13 @@ class GeoSpatialCommands:
         lat2, lon2 = self._decoding_location_score(score2)
         distance_meters = self._haversine_distance(lat1, lon1, lat2, lon2)
         if unit == b"m":
-            return distance_meters
+            return str(distance_meters)
         elif unit == b"km":
-            return distance_meters / 1000
+            return str(distance_meters / 1000)
         elif unit == b"mi":
-            return distance_meters / 1609.344
+            return str(distance_meters / 1609.344)
         elif unit == b"ft":
-            return distance_meters * 3.28084
+            return str(distance_meters * 3.28084)
         else:
             raise CommandError(f"ERR unsupported unit '{unit.decode()}'")
         
@@ -106,6 +106,7 @@ class GeoSpatialCommands:
         c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
         return R * c
+    
     @staticmethod
     def _validate_coordinates(longitude, latitude):
         if not (-180 <= longitude <= 180) or not (-85.05112878 <= latitude <= 85.05112878):
