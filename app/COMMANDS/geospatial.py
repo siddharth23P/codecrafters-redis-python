@@ -90,7 +90,49 @@ class GeoSpatialCommands:
         else:
             raise CommandError(f"ERR unsupported unit '{unit.decode()}'")
         
+    @register
+    def geosearch(self, args):
+        """
+        arguments
+        FROMLONLAT <longitude> <latitude>
+        BYRADIUS <radius> <unit>
+        """
+        check_arity("geosearch", len(args) == 7)
+        
+        if args[1].upper() != b"FROMLONLAT" or args[4].upper() != b"BYRADIUS":
+            raise CommandError("ERR syntax error")
+        key, long, lat, radius, unit = args[0], args[2], args[3], args[5], args[6]
+        
+        try:
+            center_lon, center_lat, radius = float(long), float(lat), float(radius)
+        except ValueError:
+            raise CommandError("ERR value is not a valid float") from None
+        
+        if not self._validate_coordinates(center_lon, center_lat):
+            raise CommandError(f"ERR invalid longitude, latitude pair ({center_lon}, {center_lat})")
+        radius_meters = radius * self._unit_factor(unit)
+
+        entries = self._get_sorted_set(key)
+        if entries is None:
+            return []
+        
+        matches = []
+        for member, score in entries:
+            member_lat, member_lon = self._decoding_location_score(score)
+            if self._haversine_distance(center_lat, center_lon, member_lat, member_lon) <= radius_meters:
+                matches.append(member)
+        return matches
+
     # --- helper methods for geospatial calculations ---
+    UNIT_TO_METERS = {b"m": 1.0, b"km": 1000.0, b"mi": 1609.344, b"ft": 0.3048}
+
+    @staticmethod
+    def _unit_factor(unit):
+        factor = GeoSpatialCommands.UNIT_TO_METERS.get(unit.lower())
+        if factor is None:
+            raise CommandError("ERR unsupported unit provided. please use M, KM, FT, MI")
+        return factor
+    
     @staticmethod
     def _haversine_distance(lat1, lon1, lat2, lon2):
         """Calculate the great-circle distance between two points on the Earth using the Haversine formula."""
