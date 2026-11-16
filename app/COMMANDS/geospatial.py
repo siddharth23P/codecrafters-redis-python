@@ -137,7 +137,7 @@ class GeoSpatialCommands:
         normalized_longitude = int(2**26 * (longitude - MIN_LONGITUDE) / LONGITUDE_RANGE)
 
         score = GeoSpatialCommands._interleave(normalized_latitude, normalized_longitude)
-        return score
+        return int(score)
     
     @staticmethod
     def _decoding_location_score(score):
