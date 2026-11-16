@@ -34,7 +34,8 @@ class GeoSpatialCommands:
         for i in range(0, len(triplets), 3):
             longitude = float(triplets[i])
             latitude = float(triplets[i + 1])
-            self._validate_coordinates(longitude, latitude)
+            if not self._validate_coordinates(longitude, latitude):
+                raise ValueError(f"ERR invalid longitude, latitude pair ({longitude}, {latitude})")
             member = triplets[i + 2]
             if entries.add(member, (longitude, latitude)):
                 added_count += 1
@@ -43,4 +44,5 @@ class GeoSpatialCommands:
     # --- helper methods for geospatial calculations ---
     def _validate_coordinates(self, longitude, latitude):
         if not (-180 <= longitude <= 180) or not (-85.05112878 <= latitude <= 85.05112878):
-            raise ValueError(f"ERR invalid longitude, latitude pair ({longitude}, {latitude})")
+           return False
+        return True
