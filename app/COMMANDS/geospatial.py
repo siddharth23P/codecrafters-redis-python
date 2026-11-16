@@ -1,4 +1,4 @@
-from ..PROTOCOL.resp_types import BulkString, WrongTypeError
+from ..PROTOCOL.resp_types import BulkString, WrongTypeError, CommandError, Integer
 from . import check_arity, register, registered_commands, to_int
 from ..DATASTRUCTURES.sortedsets import SortedSet
 
@@ -35,7 +35,7 @@ class GeoSpatialCommands:
             longitude = float(triplets[i])
             latitude = float(triplets[i + 1])
             if not self._validate_coordinates(longitude, latitude):
-                raise ValueError(f"ERR invalid longitude, latitude pair ({longitude}, {latitude})")
+                raise CommandError(f"ERR invalid longitude, latitude pair ({longitude}, {latitude})")
             member = triplets[i + 2]
             if entries.add(member, (longitude, latitude)):
                 added_count += 1
