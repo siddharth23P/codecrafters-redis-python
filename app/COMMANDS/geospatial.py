@@ -57,7 +57,7 @@ class GeoSpatialCommands:
         return x | y_shifted
     
     @staticmethod
-    def _spread_int32_to_int64(x: int) -> int:
+    def _spread_int32_to_int64(v: int) -> int:
         """Spread a 32-bit integer into a 64-bit integer by interleaving its bits with zeros."""
         # Ensure only lower 32 bits are non-zero.
         v = v & 0xFFFFFFFF
