@@ -15,7 +15,7 @@ class ACL:
     def acl(self, args):
         """ACL <subcommand> [arg ...]"""
         check_arity("acl", len(args) >= 1)
-        user = self._store.get("users",{b"default":[]})
+        user = self._store.get("users",{b"default":[b"nopass"]})
         current_user = b"default"
         sub = args[0].lower()
         if sub == b"whoami":
