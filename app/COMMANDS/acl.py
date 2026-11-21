@@ -1,11 +1,10 @@
 """ACL: access-control subcommands (WHOAMI, ...)."""
 from ..PROTOCOL.resp_types import BulkString,Array, CommandError
 from . import check_arity, register, registered_commands
-
+import hashlib
 
 def create(ctx):
     return registered_commands(ACL(ctx.store))
-
 
 class ACL:
     def __init__(self, store):
@@ -29,9 +28,19 @@ class ACL:
             return BulkString(current_user)
         if sub == b"getuser":
             check_arity("acl|getuser", len(args) == 2)
-            user = self._users.get(args[1])  # usernames are case-sensitive
+            user = self._users.get(args[1])
             if user is None:
                 return Array(None)
             return Array([b"flags", user[b"flags"], b"passwords", user[b"passwords"]])
-
+        if sub == b"setuser":
+            check_arity("acl|getuser", len(args) == 3)
+            user = self._users.get(args[1])
+            if user is None:
+                return Array(None)
+            
+            password = args[2]
+            hashed_password = hashlib.sha256(password[1:].encode("utf-8")).hexdigest()
+            user[b"passwords"].append(hashed_password)
+            
         raise CommandError(f"Unknown ACL subcommand '{args[0].decode(errors='replace')}'")
+    
