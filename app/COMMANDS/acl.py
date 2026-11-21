@@ -39,7 +39,7 @@ class ACL:
                 return Array(None)
             
             password = args[2]
-            hashed_password = hashlib.sha256(password[1:].encode("utf-8")).hexdigest()
+            hashed_password = hashlib.sha256(password[1:]).hexdigest()
             user[b"passwords"].append(hashed_password)
             
         raise CommandError(f"Unknown ACL subcommand '{args[0].decode(errors='replace')}'")
