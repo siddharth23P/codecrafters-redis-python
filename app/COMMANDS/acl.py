@@ -39,6 +39,8 @@ class ACL:
                 return Array(None)
             password = args[2]
             hashed_password = hashlib.sha256(password[1:]).hexdigest()
+            if b"nopass" in user[b"flags"]:
+                user[b"flags"].remove(b"nopass")
             user[b"passwords"].append(hashed_password)
             return SimpleString("OK")
             
